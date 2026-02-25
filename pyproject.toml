@@ -1,0 +1,50 @@
+[project]
+name = "batuta"
+version = "0.1.0"
+description = "Orchestrate Android reverse engineering tools into a unified security analysis pipeline"
+authors = [
+    {name = "regne",email = "45595378+luca-regne@users.noreply.github.com"}
+]
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "pydantic>=2",
+    "androguard>=3.3",
+    "pyaxmlparser>=0.3",
+]
+
+[project.scripts]
+batuta = "batuta.cli.main:app"
+
+[tool.poetry]
+packages = [{include = "batuta", from = "src"}]
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+ruff = ">=0.4"
+mypy = ">=1.10"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# B008: typer uses function calls in defaults by design
+"src/batuta/cli/*.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
