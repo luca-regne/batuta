@@ -39,6 +39,7 @@ def list_devices(
                     "model": d.model,
                     "product": d.product,
                     "available": d.is_available,
+                    "transport_id": d.transport_id
                 }
                 for d in devices
             ]
@@ -50,6 +51,7 @@ def list_devices(
             raise typer.Exit(1) from None
 
         table = Table(title="Connected Devices")
+        table.add_column("TID")
         table.add_column("ID", style="cyan")
         table.add_column("State", style="green")
         table.add_column("Model")
@@ -58,10 +60,11 @@ def list_devices(
         for device in devices:
             state_style = "green" if device.is_available else "red"
             table.add_row(
+                device.transport_id or "-",
                 device.id,
                 f"[{state_style}]{device.state.value}[/{state_style}]",
                 device.model or "-",
-                device.product or "-",
+                device.product or "-"
             )
 
         console.print(table)
