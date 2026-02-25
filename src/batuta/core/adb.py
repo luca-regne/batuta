@@ -416,14 +416,12 @@ class ADBWrapper:
         self,
         query: str,
         include_system: bool = False,
-        allow_multiple: bool = False,
     ) -> PackageInfo:
         """Find a single package matching query.
 
         Args:
             query: Package name, app name, or filter.
             include_system: If True, include system packages.
-            allow_multiple: If True, return first match instead of raising.
 
         Returns:
             PackageInfo for the matching package.
@@ -437,7 +435,7 @@ class ADBWrapper:
         if not matches:
             raise PackageNotFoundError(query)
 
-        if len(matches) == 1 or allow_multiple:
+        if len(matches) == 1:
             return matches[0]
 
         raise MultiplePackagesFoundError(query, [m.package_name for m in matches])
