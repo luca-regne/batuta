@@ -8,7 +8,11 @@ import typer
 from rich.table import Table
 
 from batuta.core.adb import ADBWrapper
-from batuta.exceptions import BatutaError, MultiplePackagesFoundError
+from batuta.exceptions import (
+    BatutaError,
+    MultiplePackagesFoundError,
+    PackageNotFoundError,
+)
 from batuta.models.apk import PackageInfo
 from batuta.utils.deps import require
 from batuta.utils.output import console
@@ -225,6 +229,11 @@ def pull_apk(
         "-s",
         help="Include system packages in search.",
     ),
+    pull_all: bool = typer.Option(
+        False,
+        "--all",
+        help="Pull all packages matching the filter instead of selecting one.",
+    ),
     select: bool = typer.Option(
         False,
         "--select",
@@ -253,42 +262,66 @@ def pull_apk(
     try:
         adb = ADBWrapper(device_id=device)
 
-        # Find the package
-        try:
-            pkg = adb.find_package(query, include_system=system)
-        except MultiplePackagesFoundError:
-            if select and not json_output:
-                matches = adb.search_packages(query, include_system=system)
-                pkg = _select_package(matches, query)
-            else:
-                raise
+        # Determine which packages to pull
+        if pull_all:
+            packages = adb.search_packages(query, include_system=system)
+            if not packages:
+                raise PackageNotFoundError(query)
+        else:
+            try:
+                pkg = adb.find_package(query, include_system=system)
+            except MultiplePackagesFoundError:
+                if select and not json_output:
+                    matches = adb.search_packages(query, include_system=system)
+                    pkg = _select_package(matches, query)
+                else:
+                    raise
+            packages = [pkg]
 
-        if not json_output:
-            console.print_info(f"Pulling {pkg.package_name}...")
-            if pkg.is_split:
-                console.print_info(f"  Split APK with {len(pkg.all_apk_paths)} parts")
+        results = []
 
-        # Pull the APK
-        with console.status("Pulling APK...") if not json_output else nullcontext():
-            result = adb.pull_apk(pkg.package_name, output_dir=output_dir)
+        for pkg in packages:
+            if not json_output:
+                console.print_info(f"Pulling {pkg.package_name}...")
+                if pkg.is_split:
+                    console.print_info(
+                        f"  Split APK with {len(pkg.all_apk_paths)} parts"
+                    )
+
+            status_label = f"Pulling {pkg.package_name}"
+            with console.status(status_label) if not json_output else nullcontext():
+                result = adb.pull_apk(pkg.package_name, output_dir=output_dir)
+
+            results.append(result)
+
+            if not json_output:
+                console.print_success(f"Pulled to {result.local_path}")
+
+                if result.is_split and result.split_paths:
+                    console.print_info(f"  {len(result.split_paths)} APK files:")
+                    for p in result.split_paths:
+                        console.print(f"    - {p.name}")
 
         if json_output:
-            output_data = {
-                "package_name": result.package_name,
-                "local_path": str(result.local_path),
-                "is_split": result.is_split,
-            }
-            if result.split_paths:
-                output_data["split_paths"] = [str(p) for p in result.split_paths]
-            typer.echo(json.dumps(output_data, indent=2))
+            output_items = []
+            for result in results:
+                item = {
+                    "package_name": result.package_name,
+                    "local_path": str(result.local_path),
+                    "is_split": result.is_split,
+                }
+                if result.split_paths:
+                    item["split_paths"] = [str(p) for p in result.split_paths]
+                output_items.append(item)
+
+            payload: list[dict[str, object]] | dict[str, object]
+            if pull_all or len(output_items) > 1:
+                payload = output_items
+            else:
+                payload = output_items[0]
+
+            typer.echo(json.dumps(payload, indent=2))
             return
-
-        console.print_success(f"Pulled to {result.local_path}")
-
-        if result.is_split and result.split_paths:
-            console.print_info(f"  {len(result.split_paths)} APK files:")
-            for p in result.split_paths:
-                console.print(f"    - {p.name}")
 
     except BatutaError as e:
         console.print_error(str(e))
