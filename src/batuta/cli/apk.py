@@ -27,16 +27,9 @@ def _select_package(packages: list[PackageInfo], query: str) -> PackageInfo:
     table = Table()
     table.add_column("#", style="cyan", width=4)
     table.add_column("Package Name", style="green")
-    table.add_column("App Name")
-    table.add_column("Version")
 
     for i, pkg in enumerate(packages, 1):
-        table.add_row(
-            str(i),
-            pkg.package_name,
-            pkg.app_name or "-",
-            pkg.version_name or "-",
-        )
+        table.add_row(str(i), pkg.package_name)
 
     console.print(table)
     console.print()
@@ -74,12 +67,6 @@ def list_packages(
         "-s",
         help="Include system packages.",
     ),
-    names: bool = typer.Option(
-        False,
-        "--names",
-        "-n",
-        help="Also search app display names when filtering (slower).",
-    ),
     detailed: bool = typer.Option(
         False,
         "--detailed",
@@ -103,7 +90,6 @@ def list_packages(
             packages = adb.search_packages(
                 filter_query,
                 include_system=system,
-                search_names=names,
                 detailed=detailed,
             )
         else:
@@ -133,14 +119,12 @@ def list_packages(
         table.add_column("Package Name", style="cyan")
 
         if detailed:
-            table.add_column("App Name")
             table.add_column("Version")
             table.add_column("Split")
 
             for pkg in packages:
                 table.add_row(
                     pkg.package_name,
-                    pkg.app_name or "-",
                     pkg.version_name or "-",
                     "Yes" if pkg.is_split else "No",
                 )
@@ -173,12 +157,6 @@ def package_info(
         "-s",
         help="Include system packages in search.",
     ),
-    names: bool = typer.Option(
-        False,
-        "--names",
-        "-n",
-        help="Also search app display names (slower).",
-    ),
     select: bool = typer.Option(
         False,
         "--select",
@@ -200,12 +178,10 @@ def package_info(
 
         # Fast search first, then get full details for selected package
         try:
-            match = adb.find_package(query, include_system=system, search_names=names)
+            match = adb.find_package(query, include_system=system)
         except MultiplePackagesFoundError:
             if select and not json_output:
-                matches = adb.search_packages(
-                    query, include_system=system, search_names=names
-                )
+                matches = adb.search_packages(query, include_system=system)
                 match = _select_package(matches, query)
             else:
                 raise
@@ -218,9 +194,6 @@ def package_info(
             return
 
         console.print(f"\n[bold cyan]{pkg.package_name}[/bold cyan]\n")
-
-        if pkg.app_name:
-            console.print(f"  App Name:    {pkg.app_name}")
         if pkg.version_name:
             console.print(f"  Version:     {pkg.version_name}")
         if pkg.version_code:
@@ -263,12 +236,6 @@ def pull_apk(
         "-s",
         help="Include system packages in search.",
     ),
-    names: bool = typer.Option(
-        False,
-        "--names",
-        "-n",
-        help="Also search app display names (slower).",
-    ),
     pull_all: bool = typer.Option(
         False,
         "--all",
@@ -293,8 +260,6 @@ def pull_apk(
     - Partial package name (example.app)
     - Filter pattern (google, facebook)
 
-    Use --names to also search by app display names (slower).
-
     For split APKs, all parts are pulled into a directory.
     """
     require("adb")
@@ -305,22 +270,16 @@ def pull_apk(
 
         # Determine which packages to pull (fast search, no metadata)
         if pull_all:
-            matches = adb.search_packages(
-                query, include_system=system, search_names=names
-            )
+            matches = adb.search_packages(query, include_system=system)
             if not matches:
                 raise PackageNotFoundError(query)
             package_names = [m.package_name for m in matches]
         else:
             try:
-                match = adb.find_package(
-                    query, include_system=system, search_names=names
-                )
+                match = adb.find_package(query, include_system=system)
             except MultiplePackagesFoundError:
                 if select and not json_output:
-                    matches = adb.search_packages(
-                        query, include_system=system, search_names=names
-                    )
+                    matches = adb.search_packages(query, include_system=system)
                     match = _select_package(matches, query)
                 else:
                     raise
@@ -390,12 +349,6 @@ def search_packages(
         "-s",
         help="Include system packages.",
     ),
-    names: bool = typer.Option(
-        False,
-        "--names",
-        "-n",
-        help="Also search app display names (slower).",
-    ),
     detailed: bool = typer.Option(
         False,
         "--detailed",
@@ -411,7 +364,6 @@ def search_packages(
     """Search for packages by name.
 
     By default, searches package names only (fast).
-    Use --names to also search app display names (slower).
     Use --detailed to fetch full package metadata (slower).
     """
     require("adb")
@@ -419,9 +371,7 @@ def search_packages(
 
     try:
         adb = ADBWrapper(device_id=device)
-        packages = adb.search_packages(
-            query, include_system=system, search_names=names, detailed=detailed
-        )
+        packages = adb.search_packages(query, include_system=system, detailed=detailed)
 
         if json_output:
             output = [pkg.model_dump(exclude_none=True) for pkg in packages]
@@ -436,14 +386,12 @@ def search_packages(
         table.add_column("Package Name", style="cyan")
 
         if detailed:
-            table.add_column("App Name")
             table.add_column("Version")
             table.add_column("Split")
 
             for pkg in packages:
                 table.add_row(
                     pkg.package_name,
-                    pkg.app_name or "-",
                     pkg.version_name or "-",
                     "Yes" if pkg.is_split else "No",
                 )

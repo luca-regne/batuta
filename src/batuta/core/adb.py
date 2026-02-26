@@ -1,7 +1,6 @@
 """ADB wrapper for device and package management."""
 
 import contextlib
-import re
 import shutil
 from pathlib import Path
 
@@ -170,40 +169,25 @@ class ADBWrapper:
         self,
         query: str,
         include_system: bool = False,
-        search_names: bool = False,
         detailed: bool = False,
     ) -> list[PackageInfo]:
         """Search for packages matching a query.
 
         By default, searches package names only using ADB's native filter.
-        Use search_names=True to also search app display names (slower).
         Use detailed=True to fetch full package metadata (slower).
 
         Args:
             query: Search query (substring match against package names).
             include_system: If True, include system packages.
-            search_names: If True, also search app display names (slower).
             detailed: If True, fetch full package metadata (slower).
 
         Returns:
             List of matching PackageInfo objects.
         """
         self.ensure_device()
-        query_lower = query.lower()
 
         # Fast path: use ADB's native package name filter
         matches = self.list_packages(include_system=include_system, filter=query)
-
-        # Optionally search app labels (expensive - requires dumpsys per package)
-        if search_names and not matches:
-            all_packages = self.list_packages(include_system=include_system)
-            for pkg in all_packages:
-                try:
-                    info = self.get_package_info(pkg)
-                    if info.app_name and query_lower in info.app_name.lower():
-                        matches.append(pkg)
-                except Exception:
-                    continue
 
         # Build results - only fetch full info if detailed=True
         results = []
@@ -261,9 +245,6 @@ class ADBWrapper:
                 # Multiple non-split APKs - treat first as base
                 split_apks.append(path)
 
-        # Get app label using dumpsys
-        app_name = self._get_app_label(package_name)
-
         # Get version info
         version_name = None
         version_code = None
@@ -286,48 +267,11 @@ class ADBWrapper:
 
         return PackageInfo(
             package_name=package_name,
-            app_name=app_name,
             version_name=version_name,
             version_code=version_code,
             apk_path=base_apk,
             split_apks=split_apks if split_apks else None,
         )
-
-    def _get_app_label(self, package_name: str) -> str | None:
-        """Get the app label (display name) for a package.
-
-        Args:
-            package_name: Full package name.
-
-        Returns:
-            App label or None if not found.
-        """
-        try:
-            # Try using cmd package which gives cleaner output
-            self._adb(
-                "shell",
-                "cmd",
-                "package",
-                "resolve-activity",
-                "--brief",
-                package_name,
-            )
-            # Fallback to dumpsys for app label
-            dumpsys = self._adb("shell", "dumpsys", "package", package_name)
-
-            for line in dumpsys:
-                # Look for the application label in various formats
-                if "applicationInfo" in line.lower():
-                    continue
-                match = re.search(r'label[=:]"?([^"}\n]+)"?', line, re.IGNORECASE)
-                if match:
-                    label = match.group(1).strip()
-                    if label and label != package_name:
-                        return label
-        except Exception:
-            pass
-
-        return None
 
     def pull_apk(
         self,
@@ -419,7 +363,6 @@ class ADBWrapper:
         self,
         query: str,
         include_system: bool = False,
-        search_names: bool = False,
         detailed: bool = False,
     ) -> PackageInfo:
         """Find a single package matching query.
@@ -427,7 +370,6 @@ class ADBWrapper:
         Args:
             query: Package name or filter (substring match).
             include_system: If True, include system packages.
-            search_names: If True, also search app display names (slower).
             detailed: If True, fetch full package metadata (slower).
 
         Returns:
@@ -440,7 +382,6 @@ class ADBWrapper:
         matches = self.search_packages(
             query,
             include_system=include_system,
-            search_names=search_names,
             detailed=detailed,
         )
 
