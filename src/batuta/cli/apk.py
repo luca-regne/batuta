@@ -8,12 +8,13 @@ import typer
 from rich.table import Table
 
 from batuta.core.adb import ADBWrapper
+from batuta.core.decompiler import APKDecompiler
 from batuta.exceptions import (
     BatutaError,
     MultiplePackagesFoundError,
     PackageNotFoundError,
 )
-from batuta.models.apk import PackageInfo
+from batuta.models.apk import DecompileResult, PackageInfo
 from batuta.utils.deps import require
 from batuta.utils.output import console
 
@@ -315,6 +316,21 @@ def pull_apk(
         "--all",
         help="Pull all packages matching the filter instead of selecting one.",
     ),
+    decompile: bool = typer.Option(
+        False,
+        "--decompile",
+        help="Decompile APK after pulling (Java + smali).",
+    ),
+    java_only: bool = typer.Option(
+        False,
+        "--java-only",
+        help="With --decompile: only decompile to Java source.",
+    ),
+    smali_only: bool = typer.Option(
+        False,
+        "--smali-only",
+        help="With --decompile: only decompile to smali/resources.",
+    ),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -330,8 +346,25 @@ def pull_apk(
     - Filter pattern (google, facebook)
 
     For split APKs, all parts are pulled into a directory.
+
+    Use --decompile to automatically decompile after pulling.
+    Note: --decompile does not support split APKs yet.
     """
     require("adb")
+
+    if (java_only or smali_only) and not decompile:
+        console.print_error("--java-only and --smali-only require --decompile")
+        raise typer.Exit(1)
+
+    if java_only and smali_only:
+        console.print_error("Cannot use both --java-only and --smali-only")
+        raise typer.Exit(1)
+
+    if decompile:
+        if not smali_only:
+            require("jadx")
+        if not java_only:
+            require("apktool")
     console.set_json_mode(json_output)
 
     try:
@@ -356,6 +389,7 @@ def pull_apk(
                     raise
 
         results = []
+        decompile_results: list[DecompileResult | None] = []
 
         for package_name in package_names:
             if not json_output:
@@ -375,16 +409,62 @@ def pull_apk(
                     for p in result.split_paths:
                         console.print(f"    - {p.name}")
 
+            if decompile:
+                if result.is_split:
+                    if not json_output:
+                        console.print_warning(
+                            "  Skipping decompile: split APKs not supported yet. "
+                        )
+                    decompile_results.append(None)
+                else:
+                    if not json_output:
+                        console.print_info(f"  Decompiling {result.local_path.name}...")
+
+                    decompiler = APKDecompiler(result.local_path)
+                    do_java = not smali_only
+                    do_smali = not java_only
+
+                    with (
+                        console.status("  Decompiling...")
+                        if not json_output
+                        else nullcontext()
+                    ):
+                        dec_result = decompiler.decompile(java=do_java, smali=do_smali)
+
+                    decompile_results.append(dec_result)
+
+                    if not json_output:
+                        console.print_success(
+                            f"  Decompiled to {dec_result.output_dir}"
+                        )
+
         if json_output:
             output_items = []
-            for result in results:
-                item = {
+            for i, result in enumerate(results):
+                item: dict[str, object] = {
                     "package_name": result.package_name,
                     "local_path": str(result.local_path),
                     "is_split": result.is_split,
                 }
                 if result.split_paths:
                     item["split_paths"] = [str(p) for p in result.split_paths]
+
+                if decompile and i < len(decompile_results):
+                    decompile_item = decompile_results[i]
+                    if decompile_item is not None:
+                        dec_data: dict[str, object] = {
+                            "output_dir": str(decompile_item.output_dir),
+                            "java_success": decompile_item.java_success,
+                            "smali_success": decompile_item.smali_success,
+                        }
+                        if decompile_item.java_dir:
+                            dec_data["java_dir"] = str(decompile_item.java_dir)
+                        if decompile_item.smali_dir:
+                            dec_data["smali_dir"] = str(decompile_item.smali_dir)
+                        item["decompile"] = dec_data
+                    else:
+                        item["decompile"] = None  # Split APK, skipped
+
                 output_items.append(item)
 
             payload: list[dict[str, object]] | dict[str, object]
@@ -641,6 +721,126 @@ def patch_apk(
                 "installed": install,
             }
             typer.echo(json.dumps(output_data, indent=2))
+
+    except BatutaError as e:
+        console.print_error(str(e))
+        raise typer.Exit(1) from None
+
+
+@app.command("decompile")
+def decompile_apk(
+    apk_path: Path = typer.Argument(
+        ...,
+        help="Path to APK file.",
+        exists=True,
+        file_okay=True,
+        dir_okay=False,
+    ),
+    output_dir: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output directory (default: ./<apk_name>/).",
+    ),
+    java_only: bool = typer.Option(
+        False,
+        "--java-only",
+        help="Only decompile to Java source (jadx).",
+    ),
+    smali_only: bool = typer.Option(
+        False,
+        "--smali-only",
+        help="Only decompile to smali/resources (apktool).",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON.",
+    ),
+) -> None:
+    """Decompile APK to Java source and smali/resources.
+
+    Uses jadx for Java source decompilation and apktool for
+    smali disassembly and resource extraction.
+
+    Output structure:
+
+        <output_dir>/
+        ├── java/    # Java source (jadx)
+        └── smali/   # Smali + resources (apktool)
+
+    Examples:
+
+        # Full decompile (Java + smali)
+        batuta apk decompile app.apk
+
+        # Java source only
+        batuta apk decompile app.apk --java-only
+
+        # Smali/resources only
+        batuta apk decompile app.apk --smali-only
+
+        # Custom output directory
+        batuta apk decompile app.apk -o ./analysis/
+    """
+    console.set_json_mode(json_output)
+
+    # Validate mutually exclusive options
+    if java_only and smali_only:
+        console.print_error("Cannot use both --java-only and --smali-only")
+        raise typer.Exit(1)
+
+    # Determine what to decompile
+    do_java = not smali_only
+    do_smali = not java_only
+
+    # Check required tools
+    if do_java:
+        require("jadx")
+    if do_smali:
+        require("apktool")
+
+    try:
+        decompiler = APKDecompiler(apk_path, output_dir)
+
+        if not json_output:
+            targets = []
+            if do_java:
+                targets.append("Java")
+            if do_smali:
+                targets.append("smali")
+            console.print_info(f"Decompiling {apk_path.name} ({', '.join(targets)})...")
+
+        with console.status("Decompiling...") if not json_output else nullcontext():
+            result = decompiler.decompile(java=do_java, smali=do_smali)
+
+        if json_output:
+            output_data: dict[str, object] = {
+                "apk_path": str(result.apk_path),
+                "output_dir": str(result.output_dir),
+                "java_success": result.java_success,
+                "smali_success": result.smali_success,
+            }
+            if result.java_dir:
+                output_data["java_dir"] = str(result.java_dir)
+            if result.smali_dir:
+                output_data["smali_dir"] = str(result.smali_dir)
+            typer.echo(json.dumps(output_data, indent=2))
+            return
+
+        # Display results
+        console.print_success(f"Decompiled to {result.output_dir}")
+
+        if result.java_success and result.java_dir:
+            console.print_info(f"  Java source: {result.java_dir}")
+        elif do_java and not result.java_success:
+            console.print_warning("  Java decompilation failed")
+
+        if result.smali_success and result.smali_dir:
+            console.print_info(f"  Smali/resources: {result.smali_dir}")
+        elif do_smali and not result.smali_success:
+            console.print_warning("  Smali decompilation failed")
 
     except BatutaError as e:
         console.print_error(str(e))

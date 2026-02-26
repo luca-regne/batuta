@@ -84,3 +84,9 @@ class APKSignError(BatutaError):
     """Raised when APK signing fails."""
 
     pass
+
+
+class DecompileError(BatutaError):
+    """Raised when APK decompilation fails."""
+
+    pass

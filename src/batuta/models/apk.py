@@ -94,3 +94,25 @@ class PatchResult(BaseModel):
 
     keystore_generated: bool = False
     """Whether a debug keystore was auto-generated."""
+
+
+class DecompileResult(BaseModel):
+    """Result of decompiling an APK."""
+
+    apk_path: Path
+    """Original APK path."""
+
+    output_dir: Path
+    """Root output directory containing java/ and smali/ subdirs."""
+
+    java_dir: Path | None = None
+    """Java source output directory (jadx). None if not requested."""
+
+    smali_dir: Path | None = None
+    """Smali/resources output directory (apktool). None if not requested."""
+
+    java_success: bool = False
+    """Whether jadx decompilation succeeded."""
+
+    smali_success: bool = False
+    """Whether apktool decompilation succeeded."""
