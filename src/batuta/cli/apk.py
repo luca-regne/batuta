@@ -20,8 +20,8 @@ from batuta.utils.output import console
 app = typer.Typer(no_args_is_help=True)
 
 
-def _select_package(packages: list[PackageInfo], query: str) -> PackageInfo:
-    """Interactive package selection."""
+def _display_package_table(packages: list[PackageInfo], query: str) -> None:
+    """Display a table of packages for selection."""
     console.print(f"\n[yellow]Multiple packages match '{query}':[/yellow]\n")
 
     table = Table()
@@ -34,19 +34,93 @@ def _select_package(packages: list[PackageInfo], query: str) -> PackageInfo:
     console.print(table)
     console.print()
 
+
+def _parse_selection(choice: str, max_idx: int) -> list[int] | None:
+    """Parse user selection input.
+
+    Supports:
+    - Single number: "1"
+    - Comma-separated: "1,3,5"
+    - Ranges: "1-5"
+    - Mixed: "1,3-5,7"
+    - All: "a" or "all"
+
+    Returns list of 0-based indices or None if invalid.
+    """
+    choice = choice.strip().lower()
+
+    if choice in ("a", "all"):
+        return list(range(max_idx))
+
+    indices: set[int] = set()
+    parts = choice.replace(" ", "").split(",")
+
+    for part in parts:
+        if "-" in part:
+            # Range: "1-5"
+            try:
+                start, end = part.split("-", 1)
+                start_idx = int(start) - 1
+                end_idx = int(end) - 1
+                if start_idx < 0 or end_idx >= max_idx or start_idx > end_idx:
+                    return None
+                indices.update(range(start_idx, end_idx + 1))
+            except ValueError:
+                return None
+        else:
+            # Single number
+            try:
+                idx = int(part) - 1
+                if idx < 0 or idx >= max_idx:
+                    return None
+                indices.add(idx)
+            except ValueError:
+                return None
+
+    return sorted(indices) if indices else None
+
+
+def _select_package(
+    packages: list[PackageInfo], query: str, multiple: bool = False
+) -> list[PackageInfo]:
+    """Interactive package selection.
+
+    Args:
+        packages: List of packages to select from.
+        query: Original search query (for display).
+        multiple: If True, allow selecting multiple packages.
+
+    Returns:
+        List of selected PackageInfo objects.
+    """
+    _display_package_table(packages, query)
+
+    if multiple:
+        prompt_msg = "Select packages (e.g., 1,3-5 or 'a' for all, 'q' to quit)"
+    else:
+        prompt_msg = "Select package number (or 'q' to quit)"
+
     while True:
-        try:
-            choice = typer.prompt("Select package number (or 'q' to quit)")
-            if choice.lower() == "q":
-                raise typer.Abort()
+        choice = typer.prompt(prompt_msg)
+        if choice.lower() == "q":
+            raise typer.Abort()
 
-            idx = int(choice) - 1
-            if 0 <= idx < len(packages):
-                return packages[idx]
-
-            console.print_error(f"Invalid choice. Enter 1-{len(packages)}")
-        except ValueError:
-            console.print_error("Please enter a number")
+        if multiple:
+            indices = _parse_selection(choice, len(packages))
+            if indices is not None:
+                return [packages[i] for i in indices]
+            console.print_error(
+                f"Invalid selection. Enter 1-{len(packages)}, ranges (1-3), "
+                "comma-separated (1,3,5), or 'a' for all"
+            )
+        else:
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(packages):
+                    return [packages[idx]]
+                console.print_error(f"Invalid choice. Enter 1-{len(packages)}")
+            except ValueError:
+                console.print_error("Please enter a number")
 
 
 @app.command("list")
@@ -176,7 +250,8 @@ def package_info(
         except MultiplePackagesFoundError:
             if not json_output:
                 matches = adb.search_packages(query, include_system=system)
-                match = _select_package(matches, query)
+                selected = _select_package(matches, query, multiple=False)
+                match = selected[0]
             else:
                 raise
 
@@ -265,13 +340,14 @@ def pull_apk(
         else:
             try:
                 match = adb.find_package(query, include_system=system)
+                package_names = [match.package_name]
             except MultiplePackagesFoundError:
                 if not json_output:
                     matches = adb.search_packages(query, include_system=system)
-                    match = _select_package(matches, query)
+                    selected = _select_package(matches, query, multiple=True)
+                    package_names = [m.package_name for m in selected]
                 else:
                     raise
-            package_names = [match.package_name]
 
         results = []
 
