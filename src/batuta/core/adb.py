@@ -232,35 +232,62 @@ class ADBWrapper:
         if not apk_paths:
             raise PackageNotFoundError(package_name)
 
-        # Separate base APK and splits
         base_apk = None
         split_apks = []
 
         for path in apk_paths:
-            if "split_" in path or "/split_" in path:
+            if str(path).endswith("base.apk"):
+                base_apk = path
+            elif "split_" in path or "/split_" in path:
                 split_apks.append(path)
             elif base_apk is None:
                 base_apk = path
             else:
-                # Multiple non-split APKs - treat first as base
                 split_apks.append(path)
 
-        # Get version info
-        version_name = None
-        version_code = None
+        # Initialize all variables
+        version_name: str | None = None
+        version_code: int | None = None
+        min_sdk: int | None = None
+        target_sdk: int | None = None
+        signing_version: int | None = None
 
         try:
             dumpsys = self._adb("shell", "dumpsys", "package", package_name)
             for line in dumpsys:
                 line = line.strip()
+
                 if line.startswith("versionName="):
                     version_name = line.split("=", 1)[1]
-                elif line.startswith("versionCode="):
-                    # Format: versionCode=123 minSdk=...
-                    version_str = line.split("=", 1)[1].split()[0]
+
+                elif line.startswith("apkSigningVersion="):
                     with contextlib.suppress(ValueError):
-                        version_code = int(version_str)
-                if version_name and version_code:
+                        signing_version = int(line.split("=", 1)[1])
+
+                elif line.startswith("versionCode="):
+                    # Format: versionCode=123 minSdk=21 targetSdk=34
+                    parts = line.split()
+                    for part in parts:
+                        if "=" in part:
+                            key, value = part.split("=", 1)
+                            with contextlib.suppress(ValueError):
+                                if key == "versionCode":
+                                    version_code = int(value)
+                                elif key == "minSdk":
+                                    min_sdk = int(value)
+                                elif key == "targetSdk":
+                                    target_sdk = int(value)
+
+                # Stop early if we have all the info we need
+                if all(
+                    [
+                        version_name,
+                        version_code is not None,
+                        min_sdk is not None,
+                        target_sdk is not None,
+                        signing_version is not None,
+                    ]
+                ):
                     break
         except Exception:
             pass
@@ -269,6 +296,9 @@ class ADBWrapper:
             package_name=package_name,
             version_name=version_name,
             version_code=version_code,
+            min_sdk=min_sdk,
+            target_sdk=target_sdk,
+            signing_version=signing_version,
             apk_path=base_apk,
             split_apks=split_apks if split_apks else None,
         )

@@ -263,13 +263,19 @@ def package_info(
 
         console.print(f"\n[bold cyan]{pkg.package_name}[/bold cyan]\n")
         if pkg.version_name:
-            console.print(f"  Version:     {pkg.version_name}")
+            console.print(f"  Version:      {pkg.version_name}")
         if pkg.version_code:
             console.print(f"  Version Code: {pkg.version_code}")
+        if pkg.min_sdk:
+            console.print(f"  Min SDK:      {pkg.min_sdk}")
+        if pkg.target_sdk:
+            console.print(f"  Target SDK:   {pkg.target_sdk}")
+        if pkg.signing_version:
+            console.print(f"  Signing Ver:  {pkg.signing_version}")
         if pkg.apk_path:
-            console.print(f"  APK Path:    {pkg.apk_path}")
+            console.print(f"  APK Path:     {pkg.apk_path}")
         if pkg.is_split:
-            console.print(f"  Split APKs:  {len(pkg.split_apks or [])} files")
+            console.print(f"  Split APKs:   {len(pkg.split_apks or [])} files")
             for split in pkg.split_apks or []:
                 console.print(f"               - {Path(split).name}")
 

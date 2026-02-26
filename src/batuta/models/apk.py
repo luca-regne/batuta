@@ -20,6 +20,15 @@ class PackageInfo(BaseModel):
     version_code: int | None = None
     """Version code (e.g., 100)."""
 
+    min_sdk: int | None = None
+    """Minimum SDK version (e.g., 21)."""
+
+    target_sdk: int | None = None
+    """Target SDK (e.g., 35)."""
+
+    signing_version: int | None = None
+    """APK signing version (e.g., 3)."""
+
     apk_path: str | None = None
     """Path to the base APK on device."""
 
