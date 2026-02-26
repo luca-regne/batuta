@@ -66,3 +66,21 @@ class ProcessError(BatutaError):
         self.stderr = stderr
         cmd_str = " ".join(command)
         super().__init__(f"Command failed (exit {returncode}): {cmd_str}\n{stderr}")
+
+
+class APKBuildError(BatutaError):
+    """Raised when APK building with apktool fails."""
+
+    pass
+
+
+class APKAlignError(BatutaError):
+    """Raised when APK alignment with zipalign fails."""
+
+    pass
+
+
+class APKSignError(BatutaError):
+    """Raised when APK signing fails."""
+
+    pass

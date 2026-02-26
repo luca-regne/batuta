@@ -72,3 +72,25 @@ class PulledAPK(BaseModel):
         if self.split_paths:
             return self.split_paths
         return [self.local_path]
+
+
+class PatchResult(BaseModel):
+    """Result of patching an APK from apktool directory."""
+
+    source_dir: Path
+    """Original apktool directory."""
+
+    output_path: Path
+    """Final output APK path."""
+
+    signed: bool = False
+    """Whether APK was signed."""
+
+    aligned: bool = False
+    """Whether APK was aligned."""
+
+    verified: bool | None = None
+    """Signature verification result. None if not verified."""
+
+    keystore_generated: bool = False
+    """Whether a debug keystore was auto-generated."""

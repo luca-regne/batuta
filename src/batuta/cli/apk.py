@@ -474,3 +474,174 @@ def search_packages(
     except BatutaError as e:
         console.print_error(str(e))
         raise typer.Exit(1) from None
+
+
+@app.command("patch")
+def patch_apk(
+    apktool_dir: Path = typer.Argument(
+        ...,
+        help="Path to apktool-decoded directory.",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output APK path (default: <dir>-patched.apk).",
+    ),
+    keystore: Path = typer.Option(
+        None,
+        "--keystore",
+        "-k",
+        help="Keystore file (default: auto-generate debug keystore).",
+    ),
+    key_alias: str = typer.Option(
+        "androiddebugkey",
+        "--key-alias",
+        help="Key alias in keystore.",
+    ),
+    keystore_pass: str = typer.Option(
+        "android",
+        "--keystore-pass",
+        help="Keystore password.",
+    ),
+    key_pass: str = typer.Option(
+        "android",
+        "--key-pass",
+        help="Key password.",
+    ),
+    no_sign: bool = typer.Option(
+        False,
+        "--no-sign",
+        help="Skip signing step.",
+    ),
+    no_align: bool = typer.Option(
+        False,
+        "--no-align",
+        help="Skip zipalign step.",
+    ),
+    verify: bool = typer.Option(
+        False,
+        "--verify",
+        help="Verify APK signature after signing.",
+    ),
+    install: bool = typer.Option(
+        False,
+        "--install",
+        help="Install APK to connected device (replaces existing).",
+    ),
+    device: str = typer.Option(
+        None,
+        "--device",
+        "-d",
+        help="Target device ID (for --install).",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON.",
+    ),
+) -> None:
+    """Build, align, and sign APK from apktool directory.
+
+    Takes a modified apktool-decoded directory and produces a
+    signed APK ready for installation.
+
+    Workflow: apktool build -> zipalign -> apksigner
+
+    Examples:
+
+        # Basic usage with auto-generated debug keystore
+        batuta apk patch ./com.example.app/
+
+        # Custom output path
+        batuta apk patch ./com.example.app/ -o ./patched.apk
+
+        # Use custom keystore
+        batuta apk patch ./com.example.app/ -k release.keystore --key-alias mykey
+
+        # Build only (no signing)
+        batuta apk patch ./com.example.app/ --no-sign --no-align
+
+        # Patch, verify, and install
+        batuta apk patch ./com.example.app/ --verify --install
+    """
+    from batuta.core.patcher import APKPatcher
+
+    require("apktool")
+    console.set_json_mode(json_output)
+
+    try:
+        patcher = APKPatcher(apktool_dir, output)
+
+        if not json_output:
+            console.print_info(f"Patching {apktool_dir.name}...")
+
+        # Run patch workflow
+        with console.status("Building APK...") if not json_output else nullcontext():
+            result = patcher.patch(
+                sign=not no_sign,
+                align=not no_align,
+                verify_signature=verify,
+                keystore=keystore,
+                key_alias=key_alias,
+                keystore_pass=keystore_pass,
+                key_pass=key_pass,
+            )
+
+        if not json_output:
+            console.print_success(f"Patched APK: {result.output_path}")
+
+            details = []
+            if result.aligned:
+                details.append("aligned")
+            if result.signed:
+                details.append("signed")
+            if result.keystore_generated:
+                details.append("debug keystore generated")
+            if result.verified is not None:
+                details.append(
+                    "verified" if result.verified else "[red]verification failed[/red]"
+                )
+
+            if details:
+                console.print_info(f"  Steps: {', '.join(details)}")
+
+        # Install if requested
+        if install:
+            require("adb")
+
+            if not json_output:
+                console.print_info("Installing to device...")
+
+            with console.status("Installing...") if not json_output else nullcontext():
+                # Use -r to replace existing app
+                from batuta.utils.process import run_tool
+
+                cmd = ["adb"]
+                if device:
+                    cmd.extend(["-s", device])
+                cmd.extend(["install", "-r", str(result.output_path)])
+                run_tool(cmd, check=True)
+
+            if not json_output:
+                console.print_success("Installed successfully")
+
+        if json_output:
+            output_data = {
+                "source_dir": str(result.source_dir),
+                "output_path": str(result.output_path),
+                "signed": result.signed,
+                "aligned": result.aligned,
+                "verified": result.verified,
+                "keystore_generated": result.keystore_generated,
+                "installed": install,
+            }
+            typer.echo(json.dumps(output_data, indent=2))
+
+    except BatutaError as e:
+        console.print_error(str(e))
+        raise typer.Exit(1) from None

@@ -10,6 +10,9 @@ TOOL_INSTALL_HINTS: dict[str, str] = {
     "apktool": "https://apktool.ibotpeaches.com/",
     "jadx": "https://github.com/skylot/jadx",
     "APKEditor": "https://github.com/REAndroid/APKEditor",
+    "zipalign": "Part of Android SDK build-tools (set ANDROID_HOME)",
+    "apksigner": "Part of Android SDK build-tools (set ANDROID_HOME)",
+    "keytool": "Part of Java JDK (install JDK and ensure it's on PATH)",
 }
 
 
