@@ -157,11 +157,6 @@ def package_info(
         "-s",
         help="Include system packages in search.",
     ),
-    select: bool = typer.Option(
-        False,
-        "--select",
-        help="Interactive selection if multiple matches.",
-    ),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -176,17 +171,15 @@ def package_info(
     try:
         adb = ADBWrapper(device_id=device)
 
-        # Fast search first, then get full details for selected package
         try:
             match = adb.find_package(query, include_system=system)
         except MultiplePackagesFoundError:
-            if select and not json_output:
+            if not json_output:
                 matches = adb.search_packages(query, include_system=system)
                 match = _select_package(matches, query)
             else:
                 raise
 
-        # Fetch full package details
         pkg = adb.get_package_info(match.package_name)
 
         if json_output:
@@ -241,11 +234,6 @@ def pull_apk(
         "--all",
         help="Pull all packages matching the filter instead of selecting one.",
     ),
-    select: bool = typer.Option(
-        False,
-        "--select",
-        help="Interactive selection if multiple matches.",
-    ),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -278,7 +266,7 @@ def pull_apk(
             try:
                 match = adb.find_package(query, include_system=system)
             except MultiplePackagesFoundError:
-                if select and not json_output:
+                if not json_output:
                     matches = adb.search_packages(query, include_system=system)
                     match = _select_package(matches, query)
                 else:
