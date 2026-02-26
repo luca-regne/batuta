@@ -58,6 +58,10 @@ def _select_package(packages: list[PackageInfo], query: str) -> PackageInfo:
 
 @app.command("list")
 def list_packages(
+    filter_query: str = typer.Argument(
+        None,
+        help="Query to filter package names.",
+    ),
     device: str = typer.Option(
         None,
         "--device",
@@ -70,11 +74,16 @@ def list_packages(
         "-s",
         help="Include system packages.",
     ),
-    filter_query: str = typer.Option(
-        None,
-        "--filter",
-        "-f",
-        help="Filter packages by name.",
+    names: bool = typer.Option(
+        False,
+        "--names",
+        "-n",
+        help="Also search app display names when filtering (slower).",
+    ),
+    detailed: bool = typer.Option(
+        False,
+        "--detailed",
+        help="Fetch full package metadata (slower).",
     ),
     json_output: bool = typer.Option(
         False,
@@ -91,11 +100,25 @@ def list_packages(
         adb = ADBWrapper(device_id=device)
 
         if filter_query:
-            packages = adb.search_packages(filter_query, include_system=system)
+            packages = adb.search_packages(
+                filter_query,
+                include_system=system,
+                search_names=names,
+                detailed=detailed,
+            )
         else:
-            # Get basic package list
-            pkg_names = adb.list_packages(include_system=system)
-            packages = [PackageInfo(package_name=name) for name in pkg_names]
+            if detailed:
+                # Get all package names then fetch details
+                pkg_names = adb.list_packages(include_system=system)
+                packages = []
+                for name in pkg_names:
+                    try:
+                        packages.append(adb.get_package_info(name))
+                    except Exception:
+                        packages.append(PackageInfo(package_name=name))
+            else:
+                pkg_names = adb.list_packages(include_system=system)
+                packages = [PackageInfo(package_name=name) for name in pkg_names]
 
         if json_output:
             output = [pkg.model_dump(exclude_none=True) for pkg in packages]
@@ -109,8 +132,7 @@ def list_packages(
         table = Table(title=f"Installed Packages ({len(packages)})")
         table.add_column("Package Name", style="cyan")
 
-        if filter_query:
-            # Show more details when filtering
+        if detailed:
             table.add_column("App Name")
             table.add_column("Version")
             table.add_column("Split")
@@ -137,7 +159,7 @@ def list_packages(
 def package_info(
     query: str = typer.Argument(
         ...,
-        help="Package name, app name, or filter.",
+        help="Package name or filter (substring match).",
     ),
     device: str = typer.Option(
         None,
@@ -150,6 +172,12 @@ def package_info(
         "--system",
         "-s",
         help="Include system packages in search.",
+    ),
+    names: bool = typer.Option(
+        False,
+        "--names",
+        "-n",
+        help="Also search app display names (slower).",
     ),
     select: bool = typer.Option(
         False,
@@ -170,14 +198,20 @@ def package_info(
     try:
         adb = ADBWrapper(device_id=device)
 
+        # Fast search first, then get full details for selected package
         try:
-            pkg = adb.find_package(query, include_system=system)
+            match = adb.find_package(query, include_system=system, search_names=names)
         except MultiplePackagesFoundError:
             if select and not json_output:
-                matches = adb.search_packages(query, include_system=system)
-                pkg = _select_package(matches, query)
+                matches = adb.search_packages(
+                    query, include_system=system, search_names=names
+                )
+                match = _select_package(matches, query)
             else:
                 raise
+
+        # Fetch full package details
+        pkg = adb.get_package_info(match.package_name)
 
         if json_output:
             typer.echo(json.dumps(pkg.model_dump(exclude_none=True), indent=2))
@@ -209,7 +243,7 @@ def package_info(
 def pull_apk(
     query: str = typer.Argument(
         ...,
-        help="Package name, app name, or filter to pull.",
+        help="Package name or filter to pull (substring match).",
     ),
     device: str = typer.Option(
         None,
@@ -228,6 +262,12 @@ def pull_apk(
         "--system",
         "-s",
         help="Include system packages in search.",
+    ),
+    names: bool = typer.Option(
+        False,
+        "--names",
+        "-n",
+        help="Also search app display names (slower).",
     ),
     pull_all: bool = typer.Option(
         False,
@@ -251,8 +291,9 @@ def pull_apk(
     Supports pulling by:
     - Exact package name (com.example.app)
     - Partial package name (example.app)
-    - App name (Example App)
     - Filter pattern (google, facebook)
+
+    Use --names to also search by app display names (slower).
 
     For split APKs, all parts are pulled into a directory.
     """
@@ -262,35 +303,38 @@ def pull_apk(
     try:
         adb = ADBWrapper(device_id=device)
 
-        # Determine which packages to pull
+        # Determine which packages to pull (fast search, no metadata)
         if pull_all:
-            packages = adb.search_packages(query, include_system=system)
-            if not packages:
+            matches = adb.search_packages(
+                query, include_system=system, search_names=names
+            )
+            if not matches:
                 raise PackageNotFoundError(query)
+            package_names = [m.package_name for m in matches]
         else:
             try:
-                pkg = adb.find_package(query, include_system=system)
+                match = adb.find_package(
+                    query, include_system=system, search_names=names
+                )
             except MultiplePackagesFoundError:
                 if select and not json_output:
-                    matches = adb.search_packages(query, include_system=system)
-                    pkg = _select_package(matches, query)
+                    matches = adb.search_packages(
+                        query, include_system=system, search_names=names
+                    )
+                    match = _select_package(matches, query)
                 else:
                     raise
-            packages = [pkg]
+            package_names = [match.package_name]
 
         results = []
 
-        for pkg in packages:
+        for package_name in package_names:
             if not json_output:
-                console.print_info(f"Pulling {pkg.package_name}...")
-                if pkg.is_split:
-                    console.print_info(
-                        f"  Split APK with {len(pkg.all_apk_paths)} parts"
-                    )
+                console.print_info(f"Pulling {package_name}...")
 
-            status_label = f"Pulling {pkg.package_name}"
+            status_label = f"Pulling {package_name}"
             with console.status(status_label) if not json_output else nullcontext():
-                result = adb.pull_apk(pkg.package_name, output_dir=output_dir)
+                result = adb.pull_apk(package_name, output_dir=output_dir)
 
             results.append(result)
 
@@ -332,7 +376,7 @@ def pull_apk(
 def search_packages(
     query: str = typer.Argument(
         ...,
-        help="Search query (package name, app name, or filter).",
+        help="Search query (substring match against package names).",
     ),
     device: str = typer.Option(
         None,
@@ -346,6 +390,17 @@ def search_packages(
         "-s",
         help="Include system packages.",
     ),
+    names: bool = typer.Option(
+        False,
+        "--names",
+        "-n",
+        help="Also search app display names (slower).",
+    ),
+    detailed: bool = typer.Option(
+        False,
+        "--detailed",
+        help="Fetch full package metadata (slower).",
+    ),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -353,13 +408,20 @@ def search_packages(
         help="Output as JSON.",
     ),
 ) -> None:
-    """Search for packages by name or app label."""
+    """Search for packages by name.
+
+    By default, searches package names only (fast).
+    Use --names to also search app display names (slower).
+    Use --detailed to fetch full package metadata (slower).
+    """
     require("adb")
     console.set_json_mode(json_output)
 
     try:
         adb = ADBWrapper(device_id=device)
-        packages = adb.search_packages(query, include_system=system)
+        packages = adb.search_packages(
+            query, include_system=system, search_names=names, detailed=detailed
+        )
 
         if json_output:
             output = [pkg.model_dump(exclude_none=True) for pkg in packages]
@@ -372,17 +434,22 @@ def search_packages(
 
         table = Table(title=f"Packages matching '{query}' ({len(packages)})")
         table.add_column("Package Name", style="cyan")
-        table.add_column("App Name")
-        table.add_column("Version")
-        table.add_column("Split")
 
-        for pkg in packages:
-            table.add_row(
-                pkg.package_name,
-                pkg.app_name or "-",
-                pkg.version_name or "-",
-                "Yes" if pkg.is_split else "No",
-            )
+        if detailed:
+            table.add_column("App Name")
+            table.add_column("Version")
+            table.add_column("Split")
+
+            for pkg in packages:
+                table.add_row(
+                    pkg.package_name,
+                    pkg.app_name or "-",
+                    pkg.version_name or "-",
+                    "Yes" if pkg.is_split else "No",
+                )
+        else:
+            for pkg in packages:
+                table.add_row(pkg.package_name)
 
         console.print(table)
 
