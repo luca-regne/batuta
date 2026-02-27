@@ -5,20 +5,26 @@ on:
     branches: [main]
   push:
     branches: [main]
+  workflow_call:
 
 jobs:
   validate:
+    name: validate (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: 3.14
+          python-version: ${{ matrix.python-version }}
       - name: Install uv with all available options
         uses: astral-sh/setup-uv@v7
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
           activate-environment: "true"
           github-token: ${{ github.token }}
           enable-cache: "auto"
@@ -32,7 +38,9 @@ jobs:
             **/*.py.lock
           restore-cache: "true"
           save-cache: "true"
+      - name: Install dependencies
+        run: uv sync --group dev
       - name: Lint with ruff
-        run: ruff check src/batuta/
+        run: uv run ruff check src/batuta/
       - name: Type check with mypy
-        run: mypy src/batuta/
+        run: uv run mypy src/batuta/
