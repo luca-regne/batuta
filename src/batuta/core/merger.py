@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from batuta.exceptions import APKMergeError
-from batuta.utils.deps import require
+from batuta.utils.deps import get_apkeditor_command, require
 from batuta.utils.process import run_tool
 
 
@@ -43,8 +43,15 @@ class SplitAPKMerger:
         if self.output_path.exists():
             self.output_path.unlink()
 
-        cmd = [
-            "APKEditor",
+        base_cmd = get_apkeditor_command()
+        if base_cmd is None:
+            raise APKMergeError(
+                "APKEditor command could not be resolved. Set APKEDITOR_JAR, "
+                "configure ~/.batuta/config.json (apkeditor_path), "
+                "or add an APKEditor wrapper to PATH."
+            )
+
+        cmd = base_cmd + [
             "merge",
             "-i",
             str(self.split_dir),

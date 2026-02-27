@@ -417,7 +417,7 @@ def pull_apk(
                         console.print(f"    - {p.name}")
                     if not (auto_merge or decompile):
                         console.print_info(
-                            f"  Merge later with 'batuta apk merge {result.local_path}'."
+                            f"  Merge later with: batuta apk merge {result.local_path}"
                         )
 
             merge_attempted = False

@@ -9,7 +9,7 @@
 ## Features
 
 - **APK pulling** — pull APKs by package name, app name, or filter pattern
-- **Split APK support** — automatically detects and pulls all split APK parts and merged it using `APKEditor`
+- **Split APK support** — automatically detects split packages, pulls every part, and merges them via `batuta apk merge` or `--auto-merge`
 - **Decompilation** — run `jadx` and/or `apktool` via `batuta apk decompile` or `batuta apk pull --decompile`
 - **APK patching** — rebuild, align, sign, and optionally install via `batuta apk patch`
 - **Interactive selection** — choose from multiple matches when searching (prompted automatically)
@@ -36,6 +36,34 @@ These must be installed and available on your `PATH`:
 | `APKEditor` | Split APK merging                           | [APKEditor Repository](https://github.com/REAndroid/APKEditor)                            |
 
 `batuta` checks for required tools at command entry and reports clear installation instructions when missing.
+
+### Configuring APKEditor
+
+`APKEditor` ships as a JAR file. Batuta resolves it in this order:
+
+1. `APKEDITOR_JAR` environment variable (points to the `.jar` or its parent directory)
+2. `~/.batuta/config.json` → `apkeditor_path`
+3. Executable wrapper called `APKEditor` somewhere on `PATH`
+
+Examples:
+
+```bash
+# 1. Environment variable (temporary for current shell)
+export APKEDITOR_JAR="$HOME/tools/APKEditor/APKEditor.jar"
+
+# 2. Config file (~/.batuta/config.json)
+{
+  "apkeditor_path": "~/tools/APKEditor/APKEditor.jar"
+}
+
+# 3. Wrapper script placed on PATH (e.g., /usr/local/bin/APKEditor)
+#!/bin/bash
+exec java -jar "$HOME/tools/APKEditor/APKEditor.jar" "$@"
+```
+
+You can point `apkeditor_path` to either the JAR file itself or the directory
+containing `APKEditor.jar`. Batuta keeps the pulled split directory intact after
+merging, regardless of the resolution method you use.
 
 ---
 
@@ -82,6 +110,9 @@ batuta apk pull com.example.app --decompile
 
 # Standalone decompile from local APK
 batuta apk decompile ./apks/com.example.app.apk --java-only
+
+# Merge a split APK directory (keeps original files)
+batuta apk merge ./apks/com.example.app --output ./apks/com.example.app.merged.apk
 ```
 
 ---
@@ -99,6 +130,7 @@ batuta
     ├── search <query>             Search packages by name or filter
     ├── info <query>               Show detailed package information
     ├── pull <query>               Pull APK from connected device (optional decompile)
+    ├── merge <dir>                Merge split APK folder into a single APK (keeps folder)
     ├── patch <apktool-dir>        Build/align/sign APK from apktool output
     └── decompile <apk>            Decompile APK to Java and/or smali
 ```
@@ -111,8 +143,14 @@ batuta
 | `--json`, `-j`   | Output as JSON for scripting                       |
 | `--system`, `-s` | Include system packages in search                  |
 | `--decompile`    | (pull) Decompile after pulling (Java + smali)      |
+| `--auto-merge`   | (pull) Merge split APK folders via APKEditor       |
 | `--java-only`    | (pull/decompile) Limit to Java (`jadx`) output     |
 | `--smali-only`   | (pull/decompile) Limit to smali/resources (`apktool`)
+
+Split APK pulls always save the original directory of base/split parts.
+Use `--auto-merge` for immediate merging (the folder stays untouched) or
+run `batuta apk merge <dir>` later. When `--decompile` is supplied, splits
+are merged automatically so jadx/apktool can run without extra steps.
 
 ### Examples
 
