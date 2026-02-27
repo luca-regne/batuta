@@ -69,12 +69,12 @@ merging, regardless of the resolution method you use.
 
 ## Installation
 
-Install from source with Poetry:
+Install from source with uv:
 
 ```bash
 git clone https://github.com/luca-regne/batuta
 cd batuta
-poetry install
+uv sync
 ```
 
 Or with pip:
@@ -216,7 +216,7 @@ Key architectural constraints:
 
 ```bash
 # Install with dev dependencies
-poetry install --with dev
+uv sync --group dev
 
 # Lint
 ruff check src/batuta/
@@ -228,7 +228,7 @@ ruff check src/batuta/ --fix
 mypy src/batuta/
 
 # Run the CLI
-poetry run batuta --help
+uv run batuta --help
 ```
 
 ---

@@ -39,9 +39,15 @@ def list_devices(
                     "model": d.model,
                     "product": d.product,
                     "available": d.is_available,
-                    "transport_id": d.transport_id
+                    "transport_id": d.transport_id,
                 }
-                for d in devices
+                
+                # Ok, I know that it's quite confusing to use "devices.devices"
+                # but it is what it is.
+                # outer "devices" = variable name
+                # inner "devices" = field of the DeviceList Pydantic model
+                # Hope you don't judge me too much for this :D
+                for d in devices.devices
             ]
             typer.echo(json.dumps(output, indent=2))
             return
@@ -57,14 +63,14 @@ def list_devices(
         table.add_column("Model")
         table.add_column("Product")
 
-        for device in devices:
+        for device in devices.devices:
             state_style = "green" if device.is_available else "red"
             table.add_row(
                 device.transport_id or "-",
                 device.id,
                 f"[{state_style}]{device.state.value}[/{state_style}]",
                 device.model or "-",
-                device.product or "-"
+                device.product or "-",
             )
 
         console.print(table)

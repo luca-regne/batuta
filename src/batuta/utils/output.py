@@ -1,6 +1,9 @@
 """Rich console helpers for terminal output."""
 
+from typing import Any
+
 from rich.console import Console as RichConsole
+from rich.status import Status
 
 
 class Console:
@@ -19,7 +22,7 @@ class Console:
         """Check if JSON mode is enabled."""
         return self._json_mode
 
-    def print(self, *args, **kwargs) -> None:
+    def print(self, *args: Any, **kwargs: Any) -> None:
         """Print to console (suppressed in JSON mode)."""
         if not self._json_mode:
             self._console.print(*args, **kwargs)
@@ -44,7 +47,7 @@ class Console:
         if not self._json_mode:
             self._console.print(f"[yellow]⚠[/yellow] {message}")
 
-    def status(self, message: str):
+    def status(self, message: str) -> Status:
         """Create a status spinner context manager."""
         return self._console.status(message)
 

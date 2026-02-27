@@ -2,11 +2,13 @@
 name = "batuta"
 version = "0.1.0"
 description = "Orchestrate Android reverse engineering tools into a unified security analysis pipeline"
-authors = [
-    {name = "regne",email = "45595378+luca-regne@users.noreply.github.com"}
-]
-readme = "README.md"
+authors = [{ name = "regne", email = "45595378+luca-regne@users.noreply.github.com" }]
 requires-python = ">=3.14"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.14",
+]
 dependencies = [
     "typer>=0.12",
     "rich>=13",
@@ -18,15 +20,24 @@ dependencies = [
 [project.scripts]
 batuta = "batuta.cli.main:app"
 
-[tool.poetry]
-packages = [{include = "batuta", from = "src"}]
+[dependency-groups]
+dev = [
+    "ruff>=0.4",
+    "mypy>=1.10",
+]
 
-[tool.poetry.group.dev]
-optional = true
+[tool.hatch.build.targets.sdist]
+include = ["src/batuta"]
 
-[tool.poetry.group.dev.dependencies]
-ruff = ">=0.4"
-mypy = ">=1.10"
+[tool.hatch.build.targets.wheel]
+include = ["src/batuta"]
+
+[tool.hatch.build.targets.wheel.sources]
+"src/batuta" = "batuta"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.ruff]
 target-version = "py314"
@@ -44,7 +55,3 @@ python_version = "3.14"
 strict = true
 warn_return_any = true
 warn_unused_ignores = true
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
