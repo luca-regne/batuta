@@ -1,11 +1,9 @@
 """Flutter APK instrumentation with reflutter."""
 
 import json
-import re
 import tempfile
 import time
 from pathlib import Path
-from zipfile import ZipFile
 
 from batuta.core.analyzer import FrameworkDetector
 from batuta.core.patcher import APKPatcher
@@ -15,7 +13,7 @@ from batuta.exceptions import (
     ReflutterError,
 )
 from batuta.models.flutter import DumpResult, FlutterPatchResult
-from batuta.utils.apk import validate_apk_path
+from batuta.utils.apk import get_package_name, validate_apk_path
 from batuta.utils.deps import require
 from batuta.utils.process import run_tool
 
@@ -30,55 +28,7 @@ class ReflutterPatcher:
             apk_path: Path to the Flutter APK to patch.
         """
         self.apk_path = apk_path.resolve()
-        self.package_name = self._extract_package_name()
-
-    def _extract_package_name(self) -> str:
-        """Extract package name from APK by parsing AndroidManifest.xml.
-
-        Returns:
-            Package name extracted from manifest.
-
-        Raises:
-            FlutterError: If package name cannot be extracted.
-        """
-        try:
-            from batuta.utils.android_sdk import get_build_tools_path
-
-            build_tools = get_build_tools_path()
-            aapt = build_tools / "aapt"
-            if aapt.exists():
-                result = run_tool(
-                    [str(aapt), "dump", "badging", str(self.apk_path)],
-                    check=False,
-                    capture_output=True,
-                )
-
-                if result.success:
-                    # Parse: package: name='com.example.app' versionCode='1' ...
-                    match = re.search(r"package: name='([^']+)'", result.stdout)
-                    if match:
-                        return match.group(1)
-        except Exception:
-            pass
-
-        # Method 2: Try pyaxmlparser (installed with batuta)
-        try:
-            from pyaxmlparser import APK
-
-            apk = APK(str(self.apk_path))
-            if apk.package:
-                return apk.package
-        except Exception:
-            pass
-
-        if "." not in stem:
-            raise FlutterError(
-                f"Could not extract package name from APK. "
-                f"Filename heuristic gave: '{stem}' which doesn't look like a package name. "
-                f"Please ensure aapt or pyaxmlparser is available."
-            )
-
-        return stem
+        self.package_name = get_package_name(self.apk_path, error_cls=FlutterError)
 
     def validate_flutter(self) -> None:
         """Verify that the APK is a Flutter application.
