@@ -12,6 +12,7 @@
 - **Split APK support** — automatically detects split packages, pulls every part, and merges them via `batuta apk merge` or `--auto-merge`
 - **Decompilation** — run `jadx` and/or `apktool` via `batuta apk decompile` or `batuta apk pull --decompile`
 - **APK patching** — rebuild, align, sign, and optionally install via `batuta apk patch`
+- **Framework detection** — detect cross-platform frameworks (Flutter, React Native, Xamarin, Cordova, Unity) via `batuta analyze framework`
 - **Interactive selection** — choose from multiple matches when searching (prompted automatically)
 - **Scriptable by design** — every command supports `--json` output for piping into `jq`, `grep`, or custom tooling
 - **Library-first architecture** — core logic is importable independently of the CLI
@@ -113,6 +114,12 @@ batuta apk decompile ./apks/com.example.app.apk --java-only
 
 # Merge a split APK directory (keeps original files)
 batuta apk merge ./apks/com.example.app --output ./apks/com.example.app.merged.apk
+
+# Detect cross-platform frameworks
+batuta analyze framework ./apks/com.example.app.apk
+
+# Framework detection with JSON output
+batuta analyze framework ./apks/com.example.app.apk --json
 ```
 
 ---
@@ -121,6 +128,9 @@ batuta apk merge ./apks/com.example.app --output ./apks/com.example.app.merged.a
 
 ```
 batuta
+├── analyze
+│   └── framework <apk>            Detect cross-platform frameworks in APK
+│
 ├── device
 │   ├── list                       List connected ADB devices
 │   └── shell [COMMAND...]         Open ADB shell (or run command)

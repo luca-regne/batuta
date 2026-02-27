@@ -3,7 +3,7 @@
 import typer
 
 from batuta import __version__
-from batuta.cli import apk, device
+from batuta.cli import analyze, apk, device
 
 app = typer.Typer(
     name="batuta",
@@ -12,6 +12,7 @@ app = typer.Typer(
 )
 
 # Register subcommands
+app.add_typer(analyze.app, name="analyze", help="Static APK analysis utilities")
 app.add_typer(device.app, name="device", help="Manage connected Android devices")
 app.add_typer(apk.app, name="apk", help="Pull and manage APK files")
 
