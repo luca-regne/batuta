@@ -96,3 +96,9 @@ class DecompileError(BatutaError):
     """Raised when APK decompilation fails."""
 
     pass
+
+
+class AnalysisError(BatutaError):
+    """Raised when APK analysis fails."""
+
+    pass
