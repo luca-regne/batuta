@@ -54,9 +54,6 @@ class DeviceList(BaseModel):
     def __len__(self) -> int:
         return len(self.devices)
 
-    def __iter__(self):
-        return iter(self.devices)
-
     @property
     def available(self) -> list[Device]:
         """Get devices that are available for commands."""
