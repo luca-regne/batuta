@@ -36,6 +36,20 @@ def check_tool(tool: str) -> bool:
     if tool == "APKEditor":
         return get_apkeditor_command() is not None
 
+    # Check Android SDK tools via SDK helper functions
+    if tool in ("apksigner", "zipalign"):
+        try:
+            # Import here to avoid circular dependency
+            from batuta.utils.android_sdk import get_apksigner, get_zipalign
+
+            if tool == "apksigner":
+                get_apksigner()
+            else:
+                get_zipalign()
+            return True
+        except ToolNotFoundError:
+            return False
+
     return shutil.which(tool) is not None
 
 
