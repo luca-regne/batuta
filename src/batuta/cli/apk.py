@@ -9,6 +9,7 @@ from rich.table import Table
 
 from batuta.core.adb import ADBWrapper
 from batuta.core.decompiler import APKDecompiler
+from batuta.core.merger import SplitAPKMerger
 from batuta.exceptions import (
     BatutaError,
     MultiplePackagesFoundError,
@@ -331,6 +332,11 @@ def pull_apk(
         "--smali-only",
         help="With --decompile: only decompile to smali/resources.",
     ),
+    auto_merge: bool = typer.Option(
+        False,
+        "--auto-merge/--no-auto-merge",
+        help="Automatically merge split APK parts using APKEditor.",
+    ),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -346,9 +352,9 @@ def pull_apk(
     - Filter pattern (google, facebook)
 
     For split APKs, all parts are pulled into a directory.
-
-    Use --decompile to automatically decompile after pulling.
-    Note: --decompile does not support split APKs yet.
+    Use --auto-merge to combine them immediately (the original folder
+    remains untouched). When --decompile is provided, split APKs are
+    merged automatically so decompilation can proceed.
     """
     require("adb")
 
@@ -390,6 +396,7 @@ def pull_apk(
 
         results = []
         decompile_results: list[DecompileResult | None] = []
+        apkeditor_checked = False
 
         for package_name in package_names:
             if not json_output:
@@ -408,35 +415,68 @@ def pull_apk(
                     console.print_info(f"  {len(result.split_paths)} APK files:")
                     for p in result.split_paths:
                         console.print(f"    - {p.name}")
+                    if not (auto_merge or decompile):
+                        console.print_info(
+                            f"  Merge later with: batuta apk merge {result.local_path}"
+                        )
+
+            merge_attempted = False
+            if result.is_split and (auto_merge or decompile):
+                merge_attempted = True
+                merge_reason = (
+                    "auto-merge enabled" if auto_merge else "required for decompile"
+                )
+                if not json_output:
+                    console.print_info(f"  Merging split APKs ({merge_reason})...")
+
+                if not apkeditor_checked:
+                    require("APKEditor")
+                    apkeditor_checked = True
+
+                try:
+                    merger = SplitAPKMerger(result.local_path)
+                    merged_path = merger.merge()
+                    result.merged_path = merged_path
+                    if not json_output:
+                        console.print_success(f"  Merged APK: {merged_path}")
+                except BatutaError as merge_error:
+                    result.merged_path = None
+                    if not json_output:
+                        console.print_error(f"  Merge failed: {merge_error}")
+                    if auto_merge:
+                        raise
 
             if decompile:
-                if result.is_split:
+                target_apk = result.final_apk_path
+                if target_apk is None:
                     if not json_output:
-                        console.print_warning(
-                            "  Skipping decompile: split APKs not supported yet. "
+                        message = (
+                            "  Skipping decompile: failed to merge split APK parts."
+                            if merge_attempted
+                            else "  Skipping decompile: no APK available."
                         )
+                        console.print_warning(message)
                     decompile_results.append(None)
-                else:
-                    if not json_output:
-                        console.print_info(f"  Decompiling {result.local_path.name}...")
+                    continue
 
-                    decompiler = APKDecompiler(result.local_path)
-                    do_java = not smali_only
-                    do_smali = not java_only
+                if not json_output:
+                    console.print_info(f"  Decompiling {target_apk.name}...")
 
-                    with (
-                        console.status("  Decompiling...")
-                        if not json_output
-                        else nullcontext()
-                    ):
-                        dec_result = decompiler.decompile(java=do_java, smali=do_smali)
+                decompiler = APKDecompiler(target_apk)
+                do_java = not smali_only
+                do_smali = not java_only
 
-                    decompile_results.append(dec_result)
+                with (
+                    console.status("  Decompiling...")
+                    if not json_output
+                    else nullcontext()
+                ):
+                    dec_result = decompiler.decompile(java=do_java, smali=do_smali)
 
-                    if not json_output:
-                        console.print_success(
-                            f"  Decompiled to {dec_result.output_dir}"
-                        )
+                decompile_results.append(dec_result)
+
+                if not json_output:
+                    console.print_success(f"  Decompiled to {dec_result.output_dir}")
 
         if json_output:
             output_items = []
@@ -448,6 +488,8 @@ def pull_apk(
                 }
                 if result.split_paths:
                     item["split_paths"] = [str(p) for p in result.split_paths]
+                if result.merged_path:
+                    item["merged_path"] = str(result.merged_path)
 
                 if decompile and i < len(decompile_results):
                     decompile_item = decompile_results[i]
@@ -475,6 +517,58 @@ def pull_apk(
 
             typer.echo(json.dumps(payload, indent=2))
             return
+
+    except BatutaError as e:
+        console.print_error(str(e))
+        raise typer.Exit(1) from None
+
+
+@app.command("merge")
+def merge_split_apks(
+    split_dir: Path = typer.Argument(
+        ...,
+        help="Directory that contains base.apk + splits (output of batuta apk pull).",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+    ),
+    output: Path = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Output APK path (default: <dir>.merged.apk).",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON.",
+    ),
+) -> None:
+    """Merge split APK directories into a single APK using APKEditor."""
+
+    require("APKEditor")
+    console.set_json_mode(json_output)
+
+    try:
+        merger = SplitAPKMerger(split_dir, output)
+
+        if not json_output:
+            console.print_info(f"Merging split APKs from {split_dir}...")
+
+        with console.status("Merging...") if not json_output else nullcontext():
+            merged_path = merger.merge()
+
+        if json_output:
+            payload = {
+                "split_dir": str(split_dir),
+                "output_path": str(merged_path),
+            }
+            typer.echo(json.dumps(payload, indent=2))
+            return
+
+        console.print_success(f"Merged APK created: {merged_path}")
+        console.print_info("Original split APKs remain untouched in the source folder")
 
     except BatutaError as e:
         console.print_error(str(e))

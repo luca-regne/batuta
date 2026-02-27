@@ -57,6 +57,12 @@ class APKPullError(ADBError):
     pass
 
 
+class APKMergeError(BatutaError):
+    """Raised when merging split APKs fails."""
+
+    pass
+
+
 class ProcessError(BatutaError):
     """Raised when a subprocess command fails."""
 

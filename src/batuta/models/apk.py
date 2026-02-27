@@ -66,12 +66,22 @@ class PulledAPK(BaseModel):
     split_paths: list[Path] | None = None
     """Paths to split APKs (if split)."""
 
+    merged_path: Path | None = None
+    """Path to merged APK (if split APKs were combined)."""
+
     @property
     def all_paths(self) -> list[Path]:
         """Get all pulled APK paths."""
         if self.split_paths:
             return self.split_paths
         return [self.local_path]
+
+    @property
+    def final_apk_path(self) -> Path | None:
+        """Best APK candidate for downstream actions (merge result or single APK)."""
+        if self.is_split:
+            return self.merged_path
+        return self.local_path
 
 
 class PatchResult(BaseModel):
