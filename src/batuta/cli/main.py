@@ -3,7 +3,7 @@
 import typer
 
 from batuta import __version__
-from batuta.cli import analyze, apk, device
+from batuta.cli import analyze, apk, device, flutter
 
 app = typer.Typer(
     name="batuta",
@@ -15,6 +15,7 @@ app = typer.Typer(
 app.add_typer(analyze.app, name="analyze", help="Static APK analysis utilities")
 app.add_typer(device.app, name="device", help="Manage connected Android devices")
 app.add_typer(apk.app, name="apk", help="Pull and manage APK files")
+app.add_typer(flutter.app, name="flutter", help="Flutter app instrumentation")
 
 
 def version_callback(value: bool) -> None:
