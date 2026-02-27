@@ -1,0 +1,38 @@
+name: PR Validation
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.14
+      - name: Install uv with all available options
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.14"
+          activate-environment: "true"
+          github-token: ${{ github.token }}
+          enable-cache: "auto"
+          cache-dependency-glob: |
+            **/*requirements*.txt
+            **/*requirements*.in
+            **/*constraints*.txt
+            **/*constraints*.in
+            **/pyproject.toml
+            **/uv.lock
+            **/*.py.lock
+          restore-cache: "true"
+          save-cache: "true"
+      - name: Lint with ruff
+        run: ruff check src/batuta/
+      - name: Type check with mypy
+        run: mypy src/batuta/
