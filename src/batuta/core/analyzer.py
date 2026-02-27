@@ -5,6 +5,7 @@ from zipfile import BadZipFile, ZipFile
 
 from batuta.exceptions import AnalysisError
 from batuta.models.analyze import FrameworkMatch, FrameworkResult
+from batuta.utils.apk import validate_apk_path
 
 
 class FrameworkDetector:
@@ -48,23 +49,6 @@ class FrameworkDetector:
             apk_path: Path to the APK file to analyze.
         """
         self.apk_path = apk_path.resolve()
-
-    def _validate_apk(self) -> None:
-        """Validate that APK exists and is a valid file.
-
-        Raises:
-            AnalysisError: If APK is invalid.
-        """
-        if not self.apk_path.exists():
-            raise AnalysisError(f"APK not found: {self.apk_path}")
-
-        if not self.apk_path.is_file():
-            raise AnalysisError(f"Not a file: {self.apk_path}")
-
-        if not self.apk_path.suffix.lower() == ".apk":
-            raise AnalysisError(
-                f"Not an APK file (expected .apk extension): {self.apk_path}"
-            )
 
     def _collect_native_libs(self, namelist: list[str]) -> list[str]:
         """Extract native library paths from APK file list.
@@ -127,7 +111,7 @@ class FrameworkDetector:
         Raises:
             AnalysisError: If APK cannot be read or is invalid.
         """
-        self._validate_apk()
+        validate_apk_path(self.apk_path, error_cls=AnalysisError)
 
         try:
             with ZipFile(self.apk_path, "r") as apk_zip:

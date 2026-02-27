@@ -4,14 +4,13 @@ from pathlib import Path
 
 from batuta.exceptions import DecompileError
 from batuta.models.apk import DecompileResult
+from batuta.utils.apk import validate_apk_path
 from batuta.utils.deps import require
 from batuta.utils.process import run_tool
 
 
 class APKDecompiler:
     """Handles APK decompilation using jadx and apktool."""
-
-    ZIP_FILE_HEADER = b"PK\x03\x04"  # ZIP file header (APKs are ZIPs)
 
     def __init__(
         self,
@@ -35,31 +34,9 @@ class APKDecompiler:
         Raises:
             DecompileError: If APK is invalid.
         """
-        if not self.apk_path.exists():
-            raise DecompileError(f"APK not found: {self.apk_path}")
-
-        if not self.apk_path.is_file():
-            raise DecompileError(f"Not a file: {self.apk_path}")
-
-        if not self.apk_path.suffix.lower() == ".apk":
-            raise DecompileError(
-                f"Not an APK file (expected .apk extension): {self.apk_path}"
-            )
-
-        try:
-            with self.apk_path.open("rb") as apk_file:
-                actual_header = apk_file.read(4)
-        except OSError as exc:
-            raise DecompileError(f"Failed to read APK header: {exc}") from exc
-
-        if len(actual_header) < len(self.ZIP_FILE_HEADER):
-            raise DecompileError("File is too small to be a valid APK")
-
-        if actual_header != self.ZIP_FILE_HEADER:
-            raise DecompileError(
-                "Header mismatch. Expected:"
-                f" {self.ZIP_FILE_HEADER!r}, got: {actual_header!r}"
-            )
+        validate_apk_path(
+            self.apk_path, require_zip_header=True, error_cls=DecompileError
+        )
 
     def decompile_java(self, output: Path) -> Path:
         """Decompile APK to Java source using jadx.
