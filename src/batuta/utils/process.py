@@ -37,6 +37,7 @@ def run_tool(
     check: bool = True,
     capture_output: bool = True,
     timeout: float | None = None,
+    cwd: str | None = None,
 ) -> ProcessResult:
     """Run an external tool command.
 
@@ -45,6 +46,7 @@ def run_tool(
         check: If True, raise ProcessError on non-zero exit.
         capture_output: If True, capture stdout and stderr.
         timeout: Optional timeout in seconds.
+        cwd: Working directory for the command.
 
     Returns:
         ProcessResult with command output.
@@ -58,6 +60,7 @@ def run_tool(
             capture_output=capture_output,
             text=True,
             timeout=timeout,
+            cwd=cwd,
         )
     except subprocess.TimeoutExpired as e:
         raise ProcessError(command, -1, f"Command timed out after {timeout}s") from e

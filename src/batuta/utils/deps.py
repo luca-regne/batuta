@@ -22,6 +22,7 @@ TOOL_INSTALL_HINTS: dict[str, str] = {
     "zipalign": "Part of Android SDK build-tools (set ANDROID_HOME)",
     "apksigner": "Part of Android SDK build-tools (set ANDROID_HOME)",
     "keytool": "Part of Java JDK (install JDK and ensure it's on PATH)",
+    "reflutter": "https://github.com/Impact-I/reFlutter — pip install reflutter",
 }
 
 APKEDITOR_ENV_VAR: Final[str] = "APKEDITOR_JAR"
