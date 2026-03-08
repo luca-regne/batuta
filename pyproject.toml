@@ -2,12 +2,17 @@
 name = "batuta"
 version = "0.1.0"
 description = "Orchestrate Android reverse engineering tools into a unified security analysis pipeline"
-authors = [{ name = "regne", email = "45595378+luca-regne@users.noreply.github.com" }]
+authors = [{ name = "regne", email = "luca@regne.me" }]
 requires-python = ">=3.14"
 readme = "README.md"
+license = { file = "LICENSE" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.14",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Topic :: Security",
+    
 ]
 dependencies = [
     "typer>=0.12",
@@ -34,6 +39,9 @@ include = ["src/batuta"]
 
 [tool.hatch.build.targets.wheel.sources]
 "src/batuta" = "batuta"
+
+[tool.uv]
+package = true  
 
 [build-system]
 requires = ["hatchling"]
