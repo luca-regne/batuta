@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from lxml import etree  # type: ignore[import-untyped]
-from pyaxmlparser import APK
+from pyaxmlparser import APK  # type: ignore[import-untyped]
 
 from batuta.exceptions import ManifestParseError
 from batuta.models.manifest import (
