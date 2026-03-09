@@ -10,7 +10,7 @@ from rich.table import Table
 from batuta.core.analyzer import FrameworkDetector
 from batuta.core.manifest import ManifestParser, get_sdk_label
 from batuta.exceptions import BatutaError
-from batuta.models.manifest import ComponentInfo
+from batuta.models.manifest import ComponentInfo, ProviderInfo
 from batuta.utils.output import console
 
 app = typer.Typer(no_args_is_help=True)
@@ -343,7 +343,7 @@ def _print_component_table(
     console.print(table)
 
 
-def _print_provider_table(providers: list) -> None:
+def _print_provider_table(providers: list[ProviderInfo]) -> None:
     """Print content providers with additional details."""
     if not providers:
         console.print("\n[bold]Content Providers[/bold]")
