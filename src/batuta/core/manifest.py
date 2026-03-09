@@ -2,8 +2,8 @@
 
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from zipfile import ZipFile
 
+from lxml import etree  # type: ignore[import-untyped]
 from pyaxmlparser import APK
 
 from batuta.exceptions import ManifestParseError
@@ -71,10 +71,13 @@ class ManifestParser:
             apk = APK(str(self.apk_path))
             manifest_xml = apk.get_android_manifest_xml()
 
-            if not manifest_xml:
+            if manifest_xml is None:
                 raise ManifestParseError("Failed to extract AndroidManifest.xml")
 
-            self.root = ET.fromstring(manifest_xml)
+            # Convert lxml Element to ElementTree Element
+            # pyaxmlparser returns lxml.etree.Element, convert to ET.Element
+            xml_string = etree.tostring(manifest_xml, encoding="unicode")
+            self.root = ET.fromstring(xml_string)
 
         except Exception as e:
             raise ManifestParseError(f"Failed to parse manifest: {e}") from e
@@ -123,18 +126,19 @@ class ManifestParser:
                 min_sdk = int(min_sdk_str)
             if target_sdk_str and target_sdk_str.isdigit():
                 target_sdk = int(target_sdk_str)
-        
+
         app_elem = self.root.find("application")
-        
-        # We want to distinguish default Android values and explicitly set values, so we use None for defaults 
-        debuggable = None  # Default is false
-        allow_backup = None  # Default is true
-        uses_cleartext_traffic = None  # Default is false
+
+        # Android default values
+        debuggable = False  # Default is false
+        allow_backup = True  # Default is true
+        uses_cleartext_traffic = True  # Default is true (pre-API 28)
         network_security_config = False
 
         if app_elem is not None:
             debuggable_str = self._get_attr(app_elem, "debuggable")
-            debuggable = debuggable_str == "true"
+            if debuggable_str is not None:
+                debuggable = debuggable_str == "true"
 
             allow_backup_str = self._get_attr(app_elem, "allowBackup")
             if allow_backup_str is not None:
