@@ -37,7 +37,10 @@ class PathPermission(BaseModel):
 
 
 class ComponentInfo(BaseModel):
-    """Base model for Android components (activities, services, receivers, providers)."""
+    """Base model for Android components.
+
+    Includes activities, services, receivers, and providers.
+    """
 
     name: str
     """Component name (short form like .MainActivity or fully qualified)."""

@@ -1,8 +1,8 @@
 """CLI commands for APK analysis."""
 
 import json
-from pathlib import Path
 from collections.abc import Callable, Sequence
+from pathlib import Path
 
 import typer
 from rich.table import Table
@@ -10,7 +10,7 @@ from rich.table import Table
 from batuta.core.analyzer import FrameworkDetector
 from batuta.core.manifest import ManifestParser, get_sdk_label
 from batuta.exceptions import BatutaError
-from batuta.models.manifest import ActivityInfo, ComponentInfo, ProviderInfo
+from batuta.models.manifest import ComponentInfo
 from batuta.utils.output import console
 
 app = typer.Typer(no_args_is_help=True)
@@ -160,14 +160,14 @@ def analyze_manifest(
                 f"  Min SDK:       {info.min_sdk}  — {get_sdk_label(info.min_sdk)}"
             )
         if info.target_sdk:
-            console.print(
-                f"  Target SDK:    {info.target_sdk}  — {get_sdk_label(info.target_sdk)}"
-            )
+            sdk_label = get_sdk_label(info.target_sdk)
+            console.print(f"  Target SDK:    {info.target_sdk}  — {sdk_label}")
 
         console.print("\n[bold]Security Flags[/bold]")
         debuggable_color = "red" if info.debuggable else "green"
         console.print(
-            f"  Debuggable:    [{debuggable_color}]{info.debuggable}[/{debuggable_color}]"
+            f"  Debuggable:    [{debuggable_color}]{info.debuggable}"
+            f"[/{debuggable_color}]"
         )
 
         backup_color = "yellow" if info.allow_backup else "green"
@@ -177,7 +177,8 @@ def analyze_manifest(
 
         cleartext_color = "yellow" if info.uses_cleartext_traffic else "green"
         console.print(
-            f"  Cleartext:     [{cleartext_color}]{info.uses_cleartext_traffic}[/{cleartext_color}]"
+            f"  Cleartext:     [{cleartext_color}]{info.uses_cleartext_traffic}"
+            f"[/{cleartext_color}]"
         )
 
         nsc_color = "green" if info.network_security_config else "yellow"
@@ -248,7 +249,8 @@ def analyze_manifest(
         console.print()
         if surface.unprotected_exported > 0:
             console.print(
-                f"  [bold red]Unprotected exported components: {surface.unprotected_exported}[/bold red]"
+                f"  [bold red]Unprotected exported components: "
+                f"{surface.unprotected_exported}[/bold red]"
             )
         if surface.grant_uri_providers > 0:
             console.print(
