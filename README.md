@@ -242,7 +242,3 @@ uv run batuta --help
 ```
 
 ---
-
-## License
-
-MIT
