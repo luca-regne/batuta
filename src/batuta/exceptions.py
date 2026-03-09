@@ -102,3 +102,9 @@ class AnalysisError(BatutaError):
     """Raised when APK analysis fails."""
 
     pass
+
+
+class ManifestParseError(BatutaError):
+    """Raised when AndroidManifest.xml cannot be parsed."""
+
+    pass

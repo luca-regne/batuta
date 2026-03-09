@@ -5,14 +5,11 @@ from pathlib import Path
 from pydantic import BaseModel
 
 
-class PackageInfo(BaseModel):
-    """Basic package information from a device."""
+class AppMetadata(BaseModel):
+    """Shared package identity fields — source-agnostic base model."""
 
     package_name: str
     """Full package name (e.g., com.example.app)."""
-
-    app_name: str | None = None
-    """Human-readable application name."""
 
     version_name: str | None = None
     """Version string (e.g., 1.0.0)."""
@@ -25,6 +22,13 @@ class PackageInfo(BaseModel):
 
     target_sdk: int | None = None
     """Target SDK (e.g., 35)."""
+
+
+class PackageInfo(AppMetadata):
+    """Basic package information from a device."""
+
+    app_name: str | None = None
+    """Human-readable application name."""
 
     signing_version: int | None = None
     """APK signing version (e.g., 3)."""
