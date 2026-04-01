@@ -20,10 +20,10 @@ app = typer.Typer(no_args_is_help=True)
 def detect_framework(
     apk_path: Path = typer.Argument(
         ...,
-        help="Path to the APK file to analyze.",
+        help="Path to an APK file or a split APK directory.",
         exists=True,
         file_okay=True,
-        dir_okay=False,
+        dir_okay=True,
         readable=True,
     ),
     no_native_libs: bool = typer.Option(
@@ -42,11 +42,21 @@ def detect_framework(
 
     Analyzes the APK structure to identify frameworks like Flutter,
     React Native, Xamarin, Cordova, and Unity based on file signatures.
+    Accepts a single APK file or a split APK directory — all parts are
+    scanned together so frameworks detected via split libs/assets are found.
     """
     console.set_json_mode(json_output)
 
     try:
-        detector = FrameworkDetector(apk_path)
+        if apk_path.is_dir():
+            paths = sorted(apk_path.glob("*.apk"))
+            if not paths:
+                console.print_error(f"No .apk files found in {apk_path}")
+                raise typer.Exit(1)
+        else:
+            paths = [apk_path]
+
+        detector = FrameworkDetector(paths)
         result = detector.detect(include_native_libs=not no_native_libs)
 
         if json_output:
@@ -54,6 +64,9 @@ def detect_framework(
             output = result.model_dump(mode="json")
             typer.echo(json.dumps(output, indent=2))
             return
+
+        if len(paths) > 1:
+            console.print(f"\n[dim]Scanned {len(paths)} APK parts[/dim]")
 
         # Table/rich output
         if result.detected_frameworks:
