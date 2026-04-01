@@ -1,26 +1,85 @@
-name: "Publish"
+name: Publish
 
 on:
-    push:
-        tags:
-            - v*
+  push:
+    tags:
+      - v*
 
 jobs:
-    run:
-        runs-on: ubuntu-latest
-        environment:
-            name: pypi
-        permissions:
-            id-token: write
-            contents: read
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v6
-            - name: Install uv
-              uses: astral-sh/setup-uv@v7
-            - name: Install Python 3.13
-              run: uv python install 3.13
-            - name: Build
-              run: uv build
-            - name: Publish
-              run: uv publish
+  validate:
+    name: Pre-release Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Install Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Lint with ruff
+        run: uv run ruff check src/batuta/
+
+      - name: Type check with mypy
+        run: uv run mypy src/batuta/
+
+      - name: Build package
+        run: uv build
+
+      - name: Verify installation
+        run: |
+          uv venv .test-venv
+          source .test-venv/bin/activate
+          uv pip install dist/*.whl
+          batuta --help
+          deactivate
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: validate
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Publish to PyPI
+        run: uv publish
+
+      - name: Extract changelog for release
+        run: |
+          VERSION="${{ github.ref_name }}"
+          git cliff --tag "$VERSION" --unreleased --strip header > release-notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body_path: release-notes.md
+          generate_release_notes: false

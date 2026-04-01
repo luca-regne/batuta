@@ -18,8 +18,8 @@ class FrameworkMatch(BaseModel):
 class FrameworkResult(BaseModel):
     """Result of framework detection analysis."""
 
-    apk_path: Path
-    """Path to the analyzed APK."""
+    apk_paths: list[Path]
+    """Paths to the analyzed APK(s). Multiple entries for split APKs."""
 
     detected_frameworks: list[FrameworkMatch]
     """List of detected frameworks with matched evidence."""
