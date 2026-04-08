@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from batuta.exceptions import (
+    APKPermissionError,
     APKPullError,
     DeviceNotFoundError,
     MultiplePackagesFoundError,
@@ -13,6 +14,10 @@ from batuta.exceptions import (
 from batuta.models.apk import PackageInfo, PulledAPK
 from batuta.models.device import Device, DeviceList, DeviceState
 from batuta.utils.process import run_tool
+
+
+def _is_permission_error(exc: BaseException) -> bool:
+    return "Permission denied" in str(exc)
 
 
 class ADBWrapper:
@@ -345,10 +350,12 @@ class ADBWrapper:
         try:
             self._adb("pull", info.apk_path, str(output_path))
         except Exception as e:
+            if _is_permission_error(e):
+                raise APKPermissionError(info.package_name, info.apk_path) from e
             raise APKPullError(f"Failed to pull {info.package_name}: {e}") from e
 
         if not output_path.exists():
-            raise APKPullError(f"Pull succeeded but file not found: {output_path}")
+            raise APKPermissionError(info.package_name, info.apk_path)
 
         return PulledAPK(
             package_name=info.package_name,
@@ -378,6 +385,8 @@ class ADBWrapper:
             except Exception as e:
                 # Clean up on failure
                 shutil.rmtree(pkg_dir, ignore_errors=True)
+                if _is_permission_error(e):
+                    raise APKPermissionError(info.package_name, apk_path) from e
                 raise APKPullError(
                     f"Failed to pull {filename} for {info.package_name}: {e}"
                 ) from e

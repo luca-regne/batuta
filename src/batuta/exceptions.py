@@ -57,6 +57,22 @@ class APKPullError(ADBError):
     pass
 
 
+class APKPermissionError(APKPullError):
+    """Raised when an APK cannot be pulled due to filesystem permissions.
+
+    Typically occurs for APKs stored in protected partitions (/vendor/, /system/)
+    on non-rooted devices where the adb shell user lacks read access.
+    """
+
+    def __init__(self, package_name: str, remote_path: str):
+        self.package_name = package_name
+        self.remote_path = remote_path
+        super().__init__(
+            f"Permission denied pulling {package_name} from {remote_path}. "
+            "APKs in /vendor/ or /system/ partitions cannot be pulled without root."
+        )
+
+
 class APKMergeError(BatutaError):
     """Raised when merging split APKs fails."""
 
