@@ -11,6 +11,7 @@ from batuta.core.adb import ADBWrapper
 from batuta.core.decompiler import APKDecompiler
 from batuta.core.merger import SplitAPKMerger
 from batuta.exceptions import (
+    APKPermissionError,
     BatutaError,
     MultiplePackagesFoundError,
     PackageNotFoundError,
@@ -403,8 +404,12 @@ def pull_apk(
                 console.print_info(f"Pulling {package_name}...")
 
             status_label = f"Pulling {package_name}"
-            with console.status(status_label) if not json_output else nullcontext():
-                result = adb.pull_apk(package_name, output_dir=output_dir)
+            try:
+                with console.status(status_label) if not json_output else nullcontext():
+                    result = adb.pull_apk(package_name, output_dir=output_dir)
+            except APKPermissionError as e:
+                console.print_warning(f"Skipped {package_name}: {e}")
+                continue
 
             results.append(result)
 

@@ -21,6 +21,20 @@ mypy src/batuta/
 uv run batuta --help
 ```
 
+There are no automated tests. Validate changes by running the CLI directly.
+
+## CLI Structure
+
+Three top-level command groups:
+
+| Group | Commands | Purpose |
+|---|---|---|
+| `batuta apk` | `list`, `search`, `info`, `pull`, `merge`, `decompile`, `patch` | Device/APK management |
+| `batuta analyze` | `manifest`, `framework` | Static analysis without decompiling |
+| `batuta device` | (device management) | ADB device operations |
+
+All commands accept `--json` / `-j` for machine-readable output. When `--json` is active, `console.*` output is suppressed — only `typer.echo(json.dumps(...))` goes to stdout.
+
 ## Architecture
 
 ```
@@ -39,9 +53,15 @@ src/batuta/
 - All external tool requirements are checked at command entry via `utils/deps.py` (`require()`)
 - mypy is configured in strict mode — all new code must be fully typed
 
+### Output Pattern
+
+Use `utils/output.py`'s global `console` singleton for all terminal output. Call `console.set_json_mode(json_output)` at the start of every command. In JSON mode all `console.*` calls are no-ops — use `typer.echo(json.dumps(...))` for structured output.
+
 ### Exception Hierarchy
 
 All exceptions inherit from `BatutaError`. Use typed subclasses (`ToolNotFoundError`, `ADBError`, `ProcessError`, etc.) rather than bare exceptions. `ProcessError` is raised automatically by `run_tool()` on non-zero exit.
+
+CLI commands catch `BatutaError`, print via `console.print_error()`, and `raise typer.Exit(1) from None`.
 
 ### External Tool Resolution
 
