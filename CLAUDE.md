@@ -27,11 +27,11 @@ There are no automated tests. Validate changes by running the CLI directly.
 
 Three top-level command groups:
 
-| Group | Commands | Purpose |
-|---|---|---|
-| `batuta apk` | `list`, `search`, `info`, `pull`, `merge`, `decompile`, `patch` | Device/APK management |
-| `batuta analyze` | `manifest`, `framework` | Static analysis without decompiling |
-| `batuta device` | (device management) | ADB device operations |
+| Group            | Commands                                                        | Purpose                             |
+| ---------------- | --------------------------------------------------------------- | ----------------------------------- |
+| `batuta apk`     | `list`, `search`, `info`, `pull`, `merge`, `decompile`, `patch` | Device/APK management               |
+| `batuta analyze` | `manifest`, `framework`                                         | Static analysis without decompiling |
+| `batuta device`  | (device management)                                             | ADB device operations               |
 
 All commands accept `--json` / `-j` for machine-readable output. When `--json` is active, `console.*` output is suppressed — only `typer.echo(json.dumps(...))` goes to stdout.
 
@@ -65,7 +65,12 @@ CLI commands catch `BatutaError`, print via `console.print_error()`, and `raise 
 
 ### External Tool Resolution
 
-`utils/deps.py` checks for `adb`, `apktool`, `jadx`, and `APKEditor`. Call `require("tool")` at the top of any CLI command that needs an external tool. `APKEditor` has special resolution logic: `APKEDITOR_JAR` env var → `~/.batuta/config.json` → `APKEditor` wrapper on `PATH`.
+- `utils/deps.py` checks for external required tools such as `adb`, `apktool`, `jadx`, and `APKEditor`.
+- Call `require("tool")` at the top of any CLI command that needs an external tool.
+- For special cases, such as `APKEditor` jar file, use a special resolution logic:
+  1. `APKEDITOR_JAR` env var
+  2. `~/.batuta/config.json`
+  3. `APKEditor` wrapper on `PATH`.
 
 ### Ruff Config Notes
 

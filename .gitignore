@@ -85,3 +85,10 @@ Thumbs.db
 *.apk
 *.dex
 *.smali
+
+# Android Files
+*.apk
+*.apk.idsig
+*.dex
+*.smali
+
