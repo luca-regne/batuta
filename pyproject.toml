@@ -1,6 +1,6 @@
 [project]
 name = "batuta"
-version = "1.0.0b1"
+version = "2.0.0"
 description = "Orchestrate Android reverse engineering tools into a unified security analysis pipeline"
 authors = [{ name = "regne", email = "luca@regne.me" }]
 requires-python = ">=3.14"
