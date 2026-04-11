@@ -72,6 +72,11 @@ jobs:
       - name: Publish to PyPI
         run: uv publish
 
+      - name: Install git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          args: --version
+
       - name: Extract changelog for release
         run: |
           VERSION="${{ github.ref_name }}"
