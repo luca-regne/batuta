@@ -8,9 +8,11 @@ import typer
 from rich.table import Table
 
 from batuta.core.adb import ADBWrapper
+from batuta.core.analyzer import FrameworkDetector
 from batuta.core.decompiler import APKDecompiler
 from batuta.core.merger import SplitAPKMerger
 from batuta.exceptions import (
+    APKPermissionError,
     BatutaError,
     MultiplePackagesFoundError,
     PackageNotFoundError,
@@ -396,6 +398,7 @@ def pull_apk(
 
         results = []
         decompile_results: list[DecompileResult | None] = []
+        fw_results = []
         apkeditor_checked = False
 
         for package_name in package_names:
@@ -403,8 +406,12 @@ def pull_apk(
                 console.print_info(f"Pulling {package_name}...")
 
             status_label = f"Pulling {package_name}"
-            with console.status(status_label) if not json_output else nullcontext():
-                result = adb.pull_apk(package_name, output_dir=output_dir)
+            try:
+                with console.status(status_label) if not json_output else nullcontext():
+                    result = adb.pull_apk(package_name, output_dir=output_dir)
+            except APKPermissionError as e:
+                console.print_warning(f"Skipped {package_name}: {e}")
+                continue
 
             results.append(result)
 
@@ -419,6 +426,20 @@ def pull_apk(
                         console.print_info(
                             f"  Merge later with: batuta apk merge {result.local_path}"
                         )
+
+            # Quick framework scan across all pulled APK parts (ZIP listing only)
+            scan_paths = result.split_paths or [result.local_path]
+            fw_result = None
+            try:
+                fw_result = FrameworkDetector(scan_paths).detect(
+                    include_native_libs=False
+                )
+                if fw_result.detected_frameworks and not json_output:
+                    names = ", ".join(m.name for m in fw_result.detected_frameworks)
+                    console.print_info(f"  Framework: {names}")
+            except BatutaError:
+                pass  # Non-fatal — pull already succeeded
+            fw_results.append(fw_result)
 
             merge_attempted = False
             if result.is_split and (auto_merge or decompile):
@@ -490,6 +511,10 @@ def pull_apk(
                     item["split_paths"] = [str(p) for p in result.split_paths]
                 if result.merged_path:
                     item["merged_path"] = str(result.merged_path)
+
+                fw = fw_results[i] if i < len(fw_results) else None
+                if fw is not None and fw.detected_frameworks:
+                    item["frameworks"] = [m.name for m in fw.detected_frameworks]
 
                 if decompile and i < len(decompile_results):
                     decompile_item = decompile_results[i]

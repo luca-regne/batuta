@@ -318,6 +318,60 @@ uv run batuta --help
 
 ---
 
-## License
+## Release Process
 
-MIT
+This project uses automated release management with conventional commits.
+
+### For Maintainers
+
+**Creating a Release:**
+
+```bash
+# Patch release (bug fixes): 1.0.0 -> 1.0.1
+./scripts/release.sh patch
+
+# Minor release (new features): 1.0.0 -> 1.1.0
+./scripts/release.sh minor
+
+# Major release (breaking changes): 1.0.0 -> 2.0.0
+./scripts/release.sh major
+```
+
+The script will:
+1. Validate working directory is clean
+2. Run lint and type checks
+3. Bump version in `pyproject.toml`
+4. Update `CHANGELOG.md`
+5. Create git commit and tag
+6. Push to GitHub
+
+GitHub Actions will then:
+1. Run full validation suite
+2. Build package
+3. Publish to PyPI
+4. Create GitHub Release with artifacts
+
+### For Contributors
+
+All commits must follow [Conventional Commits](https://www.conventionalcommits.org/) format.
+
+See [COMMIT_CONVENTION.md](.github/COMMIT_CONVENTION.md) for details.
+
+**Setup pre-commit hooks:**
+
+```bash
+pip install pre-commit
+pre-commit install --hook-type commit-msg
+```
+
+**Required tools for releases:**
+
+```bash
+# macOS
+brew install git-cliff
+
+# Linux
+cargo install git-cliff
+```
+
+---
