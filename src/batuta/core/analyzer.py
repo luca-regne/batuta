@@ -42,13 +42,14 @@ class FrameworkDetector:
         ],
     }
 
-    def __init__(self, apk_path: Path):
+    def __init__(self, apk_paths: list[Path]):
         """Initialize framework detector.
 
         Args:
-            apk_path: Path to the APK file to analyze.
+            apk_paths: Path(s) to APK file(s) to analyze. Pass multiple paths
+                to scan all parts of a split APK together.
         """
-        self.apk_path = apk_path.resolve()
+        self.apk_paths = [p.resolve() for p in apk_paths]
 
     def _collect_native_libs(self, namelist: list[str]) -> list[str]:
         """Extract native library paths from APK file list.
@@ -100,7 +101,11 @@ class FrameworkDetector:
         return sorted(detected, key=lambda m: m.name)
 
     def detect(self, include_native_libs: bool = True) -> FrameworkResult:
-        """Analyze APK and return detected frameworks and native libraries.
+        """Analyze APK(s) and return detected frameworks and native libraries.
+
+        Aggregates file listings across all provided APK paths before matching,
+        so split APKs (where libs and assets live in separate parts) are handled
+        correctly.
 
         Args:
             include_native_libs: If True, include list of all native libraries.
@@ -109,25 +114,28 @@ class FrameworkDetector:
             FrameworkResult with detected frameworks and native libraries.
 
         Raises:
-            AnalysisError: If APK cannot be read or is invalid.
+            AnalysisError: If any APK cannot be read or is invalid.
         """
-        validate_apk_path(self.apk_path, error_cls=AnalysisError)
+        combined: list[str] = []
+        for apk_path in self.apk_paths:
+            validate_apk_path(apk_path, error_cls=AnalysisError)
+            try:
+                with ZipFile(apk_path, "r") as apk_zip:
+                    combined.extend(apk_zip.namelist())
+            except BadZipFile as e:
+                raise AnalysisError(
+                    f"Invalid APK {apk_path.name} (not a valid ZIP file): {e}"
+                ) from e
+            except OSError as e:
+                raise AnalysisError(f"Failed to read {apk_path.name}: {e}") from e
 
-        try:
-            with ZipFile(self.apk_path, "r") as apk_zip:
-                namelist = apk_zip.namelist()
-        except BadZipFile as e:
-            raise AnalysisError(f"Invalid APK (not a valid ZIP file): {e}") from e
-        except OSError as e:
-            raise AnalysisError(f"Failed to read APK: {e}") from e
-
-        detected_frameworks = self._detect_frameworks(namelist)
+        detected_frameworks = self._detect_frameworks(combined)
         native_libraries = (
-            self._collect_native_libs(namelist) if include_native_libs else []
+            self._collect_native_libs(combined) if include_native_libs else []
         )
 
         return FrameworkResult(
-            apk_path=self.apk_path,
+            apk_paths=self.apk_paths,
             detected_frameworks=detected_frameworks,
             native_libraries=native_libraries,
         )
