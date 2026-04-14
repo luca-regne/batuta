@@ -120,6 +120,22 @@ class AnalysisError(BatutaError):
     pass
 
 
+class FlutterError(BatutaError):
+    """Raised when Flutter-specific operations fail."""
+
+    pass
+
+
+class ReflutterError(FlutterError):
+    """Raised when reflutter patching fails."""
+
+    pass
+
+
+class DartDumpError(FlutterError):
+    """Raised when Dart code dump fails."""
+    
+    
 class ManifestParseError(BatutaError):
     """Raised when AndroidManifest.xml cannot be parsed."""
 

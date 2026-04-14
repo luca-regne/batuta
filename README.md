@@ -13,6 +13,7 @@
 - **Decompilation** — run `jadx` and/or `apktool` via `batuta apk decompile` or `batuta apk pull --decompile`
 - **APK patching** — rebuild, align, sign, and optionally install via `batuta apk patch`
 - **Framework detection** — detect cross-platform frameworks (Flutter, React Native, Xamarin, Cordova, Unity) via `batuta analyze framework`
+- **Flutter instrumentation** — patch Flutter apps with reflutter for Dart code dumping via `batuta flutter patch`
 - **Interactive selection** — choose from multiple matches when searching (prompted automatically)
 - **Scriptable by design** — every command supports `--json` output for piping into `jq`, `grep`, or custom tooling
 - **Library-first architecture** — core logic is importable independently of the CLI
@@ -35,6 +36,7 @@ These must be installed and available on your `PATH`:
 | `apktool`   | APK decoding, smali disassembly             | [Apktool Webiste](https://apktool.org/)                                                   |
 | `jadx`      | Java/Kotlin decompilation                   | [Jadx GitHub Repository](https://github.com/skylot/jadx)                                  |
 | `APKEditor` | Split APK merging                           | [APKEditor Repository](https://github.com/REAndroid/APKEditor)                            |
+| `reflutter` | Flutter app instrumentation (optional)      | [reFlutter Repository](https://github.com/Impact-I/reFlutter) — `pip install reflutter`   |
 
 `batuta` checks for required tools at command entry and reports clear installation instructions when missing.
 
@@ -120,6 +122,15 @@ batuta analyze framework ./apks/com.example.app.apk
 
 # Framework detection with JSON output
 batuta analyze framework ./apks/com.example.app.apk --json
+
+# Flutter: Patch and instrument for Dart code dumping
+batuta flutter patch com.example.flutter.app
+
+# Flutter: Patch local APK
+batuta flutter patch app.apk --output ./analysis
+
+# Flutter: Dump Dart code from already-patched app
+batuta flutter dump com.example.flutter.app
 ```
 
 ---
@@ -134,6 +145,10 @@ batuta
 ├── device
 │   ├── list                       List connected ADB devices
 │   └── shell [COMMAND...]         Open ADB shell (or run command)
+│
+├── flutter
+│   ├── patch <package|apk>        Patch Flutter app with reflutter and dump Dart code
+│   └── dump <package>             Dump Dart code from instrumented Flutter app
 │
 └── apk
     ├── list                       List installed packages
@@ -175,6 +190,66 @@ batuta apk pull com.example.app --device RX8WC00D7JE
 # Include system packages
 batuta apk list --system --filter android
 ```
+
+---
+
+## Flutter Instrumentation
+
+The `batuta flutter` commands automate Flutter app instrumentation using [reFlutter](https://github.com/Impact-I/reFlutter) for Dart code dumping.
+
+### Requirements
+
+- **reflutter** installed: `pip install reflutter`
+- **Rooted Android device** for Dart code dumping
+- **Flutter APK** (will validate unless `--force` is used)
+
+### Workflow
+
+The `batuta flutter patch` command performs:
+
+1. Pull APK from device (or use local APK)
+2. Auto-merge if split APK detected
+3. Validate Flutter framework (unless `--force`)
+4. Patch with reflutter
+5. Sign with debug keystore
+6. Uninstall original app
+7. Install patched app
+8. Auto-start app (or wait with `--wait`)
+9. Dump Dart code to `<package>_dump.dart`
+10. Format as JSON if valid
+
+### Examples
+
+```bash
+# Full workflow: patch installed app and dump code
+batuta flutter patch com.example.flutter.app
+
+# Patch local APK file
+batuta flutter patch app.apk --output ./analysis
+
+# Skip auto-dump (install only)
+batuta flutter patch com.example.app --skip-dump
+
+# Wait for manual app start instead of auto-launch
+batuta flutter patch com.example.app --wait
+
+# Force patching (skip Flutter validation)
+batuta flutter patch com.example.app --force
+
+# Dump Dart code from already-patched app
+batuta flutter dump com.example.flutter.app
+
+# Dump to specific location
+batuta flutter dump com.example.app --output dump.dart
+```
+
+### Output Files
+
+After running `batuta flutter patch com.example.app`:
+
+- `com.example.app-reflutter-signed.apk` — Patched and signed APK
+- `com.example.app_dump.dart` — Raw Dart code dump
+- `com.example.app_dump.json` — Formatted JSON (if valid)
 
 ---
 
